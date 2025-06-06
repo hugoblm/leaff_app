@@ -5,36 +5,195 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final news = [
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F6F7),
+      body: SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Hello, User',
+                              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF212529),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Welcome to Leaff',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                        CircleAvatar(
+                          radius: 25,
+                          backgroundColor: const Color(0xFF212529),
+                          child: const Icon(
+                            Icons.person,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 30),
+                    Text(
+                      'Good Ecological News',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF212529),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) => _buildNewsCard(context, index),
+                  childCount: 10,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNewsCard(BuildContext context, int index) {
+    final newsItems = [
       {
-        'title': 'La France dépasse ses objectifs de réduction de CO2 en 2024',
-        'summary': 'Les émissions de gaz à effet de serre ont baissé de 8% cette année.'
+        'title': 'Solar Energy Reaches Record Low Prices',
+        'description': 'Solar power costs drop below fossil fuels in major markets worldwide.',
+        'image': '☀️',
+        'category': 'Renewable Energy',
       },
       {
-        'title': 'Une nouvelle forêt urbaine plantée à Lyon',
-        'summary': 'Plus de 10 000 arbres plantés pour rafraîchir la ville.'
+        'title': 'Ocean Cleanup Project Removes 100,000kg of Plastic',
+        'description': 'The Ocean Cleanup successfully extracts plastic from the Pacific Garbage Patch.',
+        'image': '🌊',
+        'category': 'Ocean Health',
       },
       {
-        'title': 'Le solaire devient la première source d\'énergie en Europe',
-        'summary': 'Une étape historique pour la transition énergétique.'
+        'title': 'EU Announces Massive Reforestation Initiative',
+        'description': '3 billion trees to be planted across Europe by 2030.',
+        'image': '🌳',
+        'category': 'Reforestation',
+      },
+      {
+        'title': 'Electric Vehicle Sales Surge 40% Globally',
+        'description': 'EVs now represent 15% of all new car sales worldwide.',
+        'image': '🚗',
+        'category': 'Transportation',
+      },
+      {
+        'title': 'Wind Power Capacity Doubles in Asia',
+        'description': 'Asian countries lead global renewable energy expansion.',
+        'image': '💨',
+        'category': 'Renewable Energy',
       },
     ];
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Actualités positives')),
-      body: ListView.builder(
-        itemCount: news.length,
-        itemBuilder: (context, index) {
-          final item = news[index];
-          return Card(
-            margin: const EdgeInsets.all(8),
-            child: ListTile(
-              title: Text(item['title']!),
-              subtitle: Text(item['summary']!),
-              leading: const Icon(Icons.eco, color: Colors.green),
+    final item = newsItems[index % newsItems.length];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {},
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF212529).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Center(
+                    child: Text(
+                      item['image']!,
+                      style: const TextStyle(fontSize: 30),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          item['category']!,
+                          style: const TextStyle(
+                            color: Colors.green,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        item['title']!,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Color(0xFF212529),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        item['description']!,
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 14,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }
