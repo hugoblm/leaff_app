@@ -1,7 +1,33 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../services/auth_service.dart';
+import '../models/user_model.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  UserModel? _user;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserInfo();
+  }
+
+  void _loadUserInfo() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      setState(() {
+        _user = authService.getUserInfo();
+      });
+    });
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -11,7 +37,7 @@ class SettingsScreen extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: const Text(
-          'Settings',
+          'Profile',
           style: TextStyle(
             color: Color(0xFF212529),
             fontWeight: FontWeight.bold,
@@ -27,8 +53,9 @@ class SettingsScreen extends StatelessWidget {
             _buildSectionTitle('Account'),
             _buildSettingsCard(
               icon: Icons.person_outline,
-              title: 'Profile',
+              title: _user?.displayName ?? 'Profile',
               subtitle: 'Manage your personal information',
+              extraText: _user?.email,
               onTap: () {},
             ),
             _buildSettingsCard(
@@ -51,6 +78,15 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ),
               ),
+            ),
+            _buildSettingsCard(
+              icon: Icons.logout,
+              title: 'Logout',
+              subtitle: 'Disconnect your account',
+              onTap: () {
+                context.read<AuthService>().signOut();
+              },
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
             ),
             const SizedBox(height: 24),
             _buildSectionTitle('Preferences'),
@@ -81,18 +117,7 @@ class SettingsScreen extends StatelessWidget {
               onTap: () {},
             ),
             const SizedBox(height: 32),
-            Center(
-              child: TextButton(
-                onPressed: () {},
-                child: const Text(
-                  'Sign Out',
-                  style: TextStyle(
-                    color: Colors.red,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
+
           ],
         ),
       ),
@@ -117,6 +142,7 @@ class SettingsScreen extends StatelessWidget {
     required IconData icon,
     required String title,
     required String subtitle,
+    String? extraText,
     required VoidCallback onTap,
     Widget? trailing,
   }) {
@@ -155,12 +181,27 @@ class SettingsScreen extends StatelessWidget {
             fontSize: 16,
           ),
         ),
-        subtitle: Text(
-          subtitle,
-          style: TextStyle(
-            color: Colors.grey[600],
-            fontSize: 14,
-          ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              subtitle,
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 14,
+              ),
+            ),
+            if (extraText != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                extraText,
+                style: TextStyle(
+                  color: Colors.grey[500],
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ],
         ),
         trailing: trailing ?? Icon(
           Icons.arrow_forward_ios,

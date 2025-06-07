@@ -45,16 +45,26 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-    <key>CFBundleURLTypes</key>
-    <array>
-        <dict>
-            <key>CFBundleURLSchemes</key>
-            <array>
-                <string>com.hbl.leaffApp</string>
-            </array>
-        </dict>
-    </array>
-    <key>GOOGLE_APP_ID</key>
-    <string>1:763792070353:ios:3606c988ef90e03f1e17f0</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.763792070353-vjv69fphsjfhmhg5l1rspqfabuh6kpcp</string>
+			</array>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+		</dict>
+	</array>
+	<key>GIDClientID</key>
+	<string>763792070353-vjv69fphsjfhmhg5l1rspqfabuh6kpcp.apps.googleusercontent.com</string>
+	<key>GOOGLE_API_KEY</key>
+	<string>AIzaSyDf28VImvQtCcmWQMy6691E49DQ1dUTN_o</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app requires access to the photo library to allow users to sign in with their Google account.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>This app requires access to the camera to allow users to sign in with their Google account.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>This app requires access to contacts to allow users to sign in with their Google account.</string>
 </dict>
 </plist>

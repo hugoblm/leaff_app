@@ -1,7 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../services/auth_service.dart';
+import '../models/user_model.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  UserModel? _user;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserInfo();
+  }
+
+  void _loadUserInfo() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      setState(() {
+        _user = authService.getUserInfo();
+      });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +48,7 @@ class HomeScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Hello, User',
+                              'Hello, ${_user?.displayName ?? 'User'}',
                               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
                                 color: const Color(0xFF212529),
@@ -38,14 +63,19 @@ class HomeScreen extends StatelessWidget {
                             ),
                           ],
                         ),
-                        CircleAvatar(
-                          radius: 25,
-                          backgroundColor: const Color(0xFF212529),
-                          child: const Icon(
-                            Icons.person,
-                            color: Colors.white,
-                          ),
-                        ),
+                        _user?.photoURL != null && _user!.photoURL!.isNotEmpty
+                            ? CircleAvatar(
+                                radius: 25,
+                                backgroundImage: NetworkImage(_user!.photoURL!),
+                              )
+                            : CircleAvatar(
+                                radius: 25,
+                                backgroundColor: const Color(0xFF212529),
+                                child: const Icon(
+                                  Icons.person,
+                                  color: Colors.white,
+                                ),
+                              ),
                       ],
                     ),
                     const SizedBox(height: 30),

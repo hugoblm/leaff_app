@@ -7,10 +7,10 @@ class FirebaseService {
     try {
       await Firebase.initializeApp(
         options: const FirebaseOptions(
-          apiKey: "YOUR_API_KEY", // Remplacer par votre API Key
-          appId: "1:763792070353:ios:3606c988ef90e03f1e17f0", // Remplacer par votre App ID
-          messagingSenderId: "YOUR_SENDER_ID", // Remplacer par votre Sender ID
-          projectId: "leaf-8a985", // Remplacer par votre Project ID
+          apiKey: "AIzaSyDf28VImvQtCcmWQMy6691E49DQ1dUTN_o", // API Key
+          appId: "1:763792070353:ios:3606c988ef90e03f1e17f0", // App ID
+          messagingSenderId: "763792070353", // Sender ID
+          projectId: "leaf-8a985", // Project ID
         ),
       );
     } catch (e) {
