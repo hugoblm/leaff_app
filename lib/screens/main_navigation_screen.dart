@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import '../screens/home_screen.dart';
-import '../screens/expenses_screen.dart';
-import '../screens/chat_screen.dart';
-import '../screens/settings_screen.dart';
+import 'home_screen.dart';
+import 'expenses_screen.dart';
+import 'chat_screen.dart';
+import 'settings_screen.dart';
+import 'scan_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -17,6 +18,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final List<Widget> _screens = [
     const HomeScreen(),
     const ExpensesScreen(),
+    const ScanScreen(),
     const ChatScreen(),
     const SettingsScreen(),
   ];
@@ -45,29 +47,44 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         child: SafeArea(
           child: Container(
             height: 65,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildNavItem(
-                  icon: Icons.search_rounded,
-                  index: 0,
-                  label: 'Discover',
+                Expanded(
+                  child: _buildNavItem(
+                    icon: Icons.search_rounded,
+                    index: 0,
+                    label: 'Discover',
+                  ),
                 ),
-                _buildNavItem(
-                  icon: Icons.receipt_long_rounded,
-                  index: 1,
-                  label: 'Expenses',
+                Expanded(
+                  child: _buildNavItem(
+                    icon: Icons.receipt_long_rounded,
+                    index: 1,
+                    label: 'Expenses',
+                  ),
                 ),
-                _buildNavItem(
-                  icon: Icons.chat_bubble_rounded,
-                  index: 2,
-                  label: 'Chat',
+                Expanded(
+                  child: _buildNavItem(
+                    icon: Icons.document_scanner_rounded,
+                    index: 2,
+                    label: 'Scan',
+                  ),
                 ),
-                _buildNavItem(
-                  icon: Icons.account_circle_rounded,
-                  index: 3,
-                  label: 'Profile',
+                Expanded(
+                  child: _buildNavItem(
+                    icon: Icons.chat_outlined,
+                    index: 3,
+                    label: 'Chat',
+                  ),
+                ),
+                Expanded(
+                  child: _buildNavItem(
+                    icon: Icons.account_circle_rounded,
+                    index: 4,
+                    label: 'Profile',
+                  ),
                 ),
               ],
             ),
@@ -88,7 +105,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       onTap: () => _onItemTapped(index),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: const BoxDecoration(
           color: Colors.transparent,
         ),

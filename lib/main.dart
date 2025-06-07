@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'services/auth_service.dart';
 import 'services/firebase_service.dart';
+import 'services/rss_service.dart';
 import 'auth/auth_check.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -17,8 +18,11 @@ class LeaffApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (context) => AuthService(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (context) => AuthService()),
+        Provider(create: (context) => RSSService()),
+      ],
       child: MaterialApp(
         title: 'Leaff - Low Carbon Living',
         theme: ThemeData(
