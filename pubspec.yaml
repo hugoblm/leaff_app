@@ -1,6 +1,6 @@
 name: leaff_app
 description: Application bas carbone inspirée de Finary
-publish_to: 'none'
+publish_to: "none"
 version: 0.1.0
 
 environment:
@@ -11,6 +11,10 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.2
   http: ^1.2.1
+  firebase_core: ^3.13.1
+  firebase_auth: ^5.5.4
+  google_sign_in: ^6.1.6
+  flutter_local_notifications: ^16.2.0
 
 dev_dependencies:
   flutter_test:
@@ -18,11 +22,11 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  
+
   # Assets
   assets:
     - assets/fonts/
-  
+
   # Fonts
   fonts:
     - family: Instrument Sans
@@ -34,4 +38,4 @@ flutter:
         - asset: assets/fonts/InstrumentSans-SemiBold.ttf
           weight: 600
         - asset: assets/fonts/InstrumentSans-Bold.ttf
-          weight: 700 
+          weight: 700

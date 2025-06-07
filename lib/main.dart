@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'screens/home_screen.dart';
 import 'screens/expenses_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/settings_screen.dart';
+import 'services/firebase_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await FirebaseService.initializeFirebase();
   runApp(const LeaffApp());
 }
 

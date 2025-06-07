@@ -45,5 +45,16 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>com.hbl.leaffApp</string>
+            </array>
+        </dict>
+    </array>
+    <key>GOOGLE_APP_ID</key>
+    <string>1:763792070353:ios:3606c988ef90e03f1e17f0</string>
 </dict>
 </plist>
