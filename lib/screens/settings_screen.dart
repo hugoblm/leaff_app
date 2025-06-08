@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../services/auth_service.dart';
+
 import '../models/user_model.dart';
+import '../services/auth_service.dart';
+import '../services/powens_service.dart'; // Ajout de l'import pour PowensService
+
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -28,16 +31,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
+/*
+  // Méthode pour naviguer vers l'écran de connexion bancaire (actuellement non utilisée directement par la carte principale)
+  Future<void> _navigateToBankConnection() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const BankConnectionScreen()),
+    );
+
+    // Rafraîchir les données si nécessaire après le retour de l'écran de connexion
+    if (result == true) {
+      // Exemple: Recharger les données des comptes bancaires si nécessaire
+      // _loadBankAccounts(); 
+    }
+  }
+*/
 
   @override
   Widget build(BuildContext context) {
+    final powensService = Provider.of<PowensService>(context, listen: false); // Obtenir PowensService
+    
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F7),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: const Text(
-          'Profile',
+          'Paramètres',
           style: TextStyle(
             color: Color(0xFF212529),
             fontWeight: FontWeight.bold,
@@ -60,23 +80,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             _buildSettingsCard(
               icon: Icons.account_balance,
-              title: 'Connected Banks',
-              subtitle: 'Manage your bank connections',
-              onTap: () {},
-              trailing: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  'Tink',
-                  style: TextStyle(
-                    color: Colors.green,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+              title: 'Comptes bancaires',
+              subtitle: 'Connectez une nouvelle banque ou gérez vos connexions',
+              onTap: () async {
+                // Appeler powensService.login() pour initier la connexion
+                bool? loginInitiated = await powensService.login();
+                if (loginInitiated == true) {
+                  print('Ouverture de l''URL de connexion POWENS...');
+                  // La redirection et la gestion du deep link feront le reste.
+                } else {
+                  print('Échec de l''initiation de la connexion POWENS.');
+                  // Afficher un message d'erreur à l'utilisateur si nécessaire
+                  if (mounted) { // Vérifier si le widget est toujours monté
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Impossible d''initier la connexion bancaire. Veuillez réessayer.')),
+                    );
+                  }
+                }
+                // Pour l'instant, nous ne naviguons plus vers BankConnectionScreen directement ici.
+                // La navigation pourrait se faire après le retour du deep link et la réussite de la connexion.
+                // Ou _navigateToBankConnection pourrait être appelée depuis un autre bouton "Gérer mes banques".
+              },
+              trailing: Consumer<PowensService>(
+                builder: (context, powensServiceInstance, child) {
+                  bool isConnected = powensServiceInstance.connectionId != null && powensServiceInstance.connectionId!.isNotEmpty;
+                  String badgeText;
+                  Color badgeBackgroundColor;
+                  Color badgeTextColor;
+
+                  if (isConnected) {
+                    badgeText = 'Connecté';
+                    badgeBackgroundColor = Colors.green.withOpacity(0.1);
+                    badgeTextColor = Colors.green;
+                  } else {
+                    badgeText = 'Non connecté';
+                    badgeBackgroundColor = Colors.grey.shade200; // Fond gris clair
+                    badgeTextColor = Colors.grey.shade700;     // Texte gris foncé
+                  }
+
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: badgeBackgroundColor,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      badgeText,
+                      style: TextStyle(
+                        color: badgeTextColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  );
+                }
               ),
             ),
             _buildSettingsCard(

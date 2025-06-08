@@ -50,9 +50,7 @@ ios/Flutter/app.flx
 ios/Flutter/app.zip
 ios/Flutter/flutter_assets/
 ios/ServiceDefinitions.json
-ios/Runner
 ios/ios/Runner
-lib/services
 
 # Android
 android/.gradle/
@@ -65,3 +63,6 @@ android/app/key.properties
 # Others
 *.swp
 pubspec.lock
+
+# Environment variables
+.env

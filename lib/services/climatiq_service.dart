@@ -25,8 +25,8 @@ class ClimatiqService {
     return null;
   }
 
-  // Simule le calcul d'empreinte carbone (POC)
-  Future<double> estimateCarbon({required double amount, required String category}) async {
+  // Simule le calcul d'empreinte carbone par catégorie (POC)
+  Future<double> estimateCarbonByCategory({required double amount, required String category}) async {
     // Pour le POC, retourne un score arbitraire basé sur la catégorie
     await Future.delayed(const Duration(milliseconds: 500));
     switch (category) {
