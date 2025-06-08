@@ -50,7 +50,9 @@ ios/Flutter/app.flx
 ios/Flutter/app.zip
 ios/Flutter/flutter_assets/
 ios/ServiceDefinitions.json
-ios/Runner/GoogleService-Info.plist
+ios/Runner
+ios/ios/Runner
+lib/services
 
 # Android
 android/.gradle/
