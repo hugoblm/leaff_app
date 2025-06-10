@@ -5,6 +5,9 @@ import 'package:provider/provider.dart';
 import '../models/transaction_details_model.dart';
 import '../services/powens_service.dart';
 import '../theme/app_theme.dart';
+import 'package:leaff_app/services/carbon_score_cache_service.dart';
+import 'package:leaff_app/services/climatiq_service.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
@@ -14,6 +17,51 @@ class ExpensesScreen extends StatefulWidget {
 }
 
 class _ExpensesScreenState extends State<ExpensesScreen> {
+  final Map<String, double?> _carbonScores = {}; // id transaction -> score carbone
+
+  Future<void> _loadCarbonScoresForTransactions(List<TransactionDetails> transactions) async {
+    // Charger le cache persistant
+    final cache = await CarbonScoreCacheService.getInstance();
+    final List<Map<String, dynamic>> batchToFetch = [];
+    for (final tx in transactions) {
+      // Si le score est déjà en mémoire, on skip
+      if (_carbonScores.containsKey(tx.id)) continue;
+      // Sinon on tente le cache persistant
+      final cached = await cache.getScore(tx.id);
+      if (cached != null) {
+        _carbonScores[tx.id] = cached;
+      } else {
+        batchToFetch.add({
+          'id': tx.id,
+          'amount': tx.amount.abs(), // montant absolu
+          'currency': 'eur', // fallback, à remplacer par tx.currency quand dispo
+        });
+      }
+    }
+    // Batchs de 5 transactions max
+    if (batchToFetch.isNotEmpty) {
+      final apiKey = dotenv.env['CLIMATIQ_API_KEY'] ?? '';
+      final climatiq = ClimatiqService(apiKey: apiKey);
+      const int batchSize = 5;
+      for (var i = 0; i < batchToFetch.length; i += batchSize) {
+        final subBatch = batchToFetch.sublist(i, (i + batchSize > batchToFetch.length) ? batchToFetch.length : i + batchSize);
+        final batchResults = await climatiq.estimateCarbonBatch(subBatch);
+        // Debug mapping retour
+        for (var idx = 0; idx < subBatch.length; idx++) {
+          final txId = subBatch[idx]['id'].toString();
+          final mappedValue = batchResults[txId];
+          debugPrint('[ExpensesScreen] Mapping batch retour idx:$idx txId:$txId => $mappedValue');
+          _carbonScores[txId] = mappedValue;
+          if (mappedValue != null) {
+            await cache.setScore(txId, mappedValue);
+          }
+        }
+        if (mounted) setState(() {});
+      }
+    }
+
+  }
+
   final List<TransactionDetails> _transactions = [];
   final Map<DateTime, List<TransactionDetails>> _groupedTransactions = {};
   final ScrollController _scrollController = ScrollController();
@@ -100,6 +148,8 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
           _hasMore = _nextPageUrl != null;
           _isLoading = false;
         });
+        // Ajout : chargement des scores carbone batch
+        await _loadCarbonScoresForTransactions(transactionPage.transactions);
       }
     } catch (e) {
       if (mounted) {
@@ -129,6 +179,8 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
           _hasMore = _nextPageUrl != null;
           _isFetchingMore = false;
         });
+        // Ajout : chargement des scores carbone batch pour les nouvelles transactions
+        await _loadCarbonScoresForTransactions(page.transactions);
       }
     } catch (e) {
       if (mounted) {
@@ -254,7 +306,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
           formattedBalance,
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.bold,
-            fontSize: 16,
+            fontSize: 20,
           ) ?? const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
       ],
@@ -283,8 +335,13 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   }
 
   Widget _buildExpenseCard(BuildContext context, TransactionDetails transaction) {
+    final carbonScore = _carbonScores[transaction.id];
+    debugPrint('[ExpensesScreen] Affichage score carbone pour tx ${transaction.id} : $carbonScore');
     final formattedAmount = transaction.amount.abs().toStringAsFixed(2);
     final amountString = transaction.amount < 0 ? '-€$formattedAmount' : '€$formattedAmount';
+
+    // Couleur dynamique centralisée dans le thème
+    final carbonColor = AppTheme.getCarbonScoreColor(carbonScore);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -321,12 +378,24 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    _capitalize(transaction.wording),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ) ?? const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _capitalize(transaction.wording),
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ) ?? const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        amountString,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ) ?? const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   // Les badges Catégorie et Score sont maintenant dans une Row
@@ -362,25 +431,27 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: Colors.orange.withOpacity(0.1),
+                          color: carbonColor.withOpacity(0.15),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Text(
-                              '??',
+                            Text(
+                              carbonScore != null
+                                  ? carbonScore.toStringAsFixed(2) + ' kgCO₂e'
+                                  : '??',
                               style: TextStyle(
                                 fontWeight: FontWeight.w600,
                                 fontSize: 10,
-                                color: Colors.orange,
+                                color: carbonColor,
                               ),
                             ),
                             const SizedBox(width: 4),
-                            const Icon(
+                            Icon(
                               Icons.eco,
                               size: 16,
-                              color: Colors.orange,
+                              color: carbonColor,
                             ),
                           ],
                         ),
@@ -393,17 +464,11 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
             // Le prix et la flèche sont maintenant sur la même ligne et centrés
             Row(
               children: [
-                Text(
-                  amountString,
-                  style: context.bodyLarge.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
                 const SizedBox(width: 8),
                 Icon(
                   Icons.arrow_forward_ios,
                   size: 16,
-color: context.onSurfaceVariantColor,
+                  color: context.onSurfaceVariantColor,
                 ),
               ],
             ),

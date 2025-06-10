@@ -89,6 +89,21 @@ class AppTextStyles {
 
 // Thème principal de l'application
 class AppTheme {
+  /// Couleur dynamique pour le score carbone
+  static Color getCarbonScoreColor(double? score) {
+    if (score == null) {
+      return Colors.grey;
+    } else if (score <= 500) {
+      return Colors.green;
+    } else if (score <= 2500) {
+      return Colors.orange;
+    } else if (score <= 5000) {
+      return Colors.red;
+    } else {
+      return Colors.purple;
+    }
+  }
+
   static ThemeData get lightTheme {
     final baseTheme = ThemeData(
       useMaterial3: true,

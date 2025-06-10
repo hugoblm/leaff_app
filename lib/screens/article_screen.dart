@@ -132,22 +132,22 @@ class _ArticleScreenState extends State<ArticleScreen> {
                   
                   // Bouton pour ouvrir l'article original
                   const SizedBox(height: 24),
-                  Center(
+                  Padding(
+                    padding: const EdgeInsets.all(56.0),
                     child: ElevatedButton.icon(
                       onPressed: () => _launchURL(article.link),
-                      icon: const Icon(Icons.newspaper_rounded, size: 18, color: Colors.white),
+                      icon: const Icon(Icons.newspaper_rounded, size: 20, color: Colors.white),
                       label: const Text('Lire l\'article'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Theme.of(context).colorScheme.primary,
-                        foregroundColor: Colors.white, // Texte en blanc
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 50),
+                        textStyle: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 2,
-                        textStyle: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
                         ),
                       ),
                     ),
