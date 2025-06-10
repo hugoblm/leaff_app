@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../models/user_model.dart';
 import 'navigation_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AuthService extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   UserModel? _currentUser;
 
   UserModel? get currentUser => _currentUser;
@@ -57,4 +59,32 @@ class AuthService extends ChangeNotifier {
   }
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
+
+  Future<void> savePowensUserId(String powensUserId) async {
+    final User? firebaseUser = _auth.currentUser;
+    if (firebaseUser == null) {
+      print('AuthService: Aucun utilisateur connecté pour sauvegarder le Powens User ID.');
+      return;
+    }
+
+    try {
+      await _firestore.collection('users').doc(firebaseUser.uid).set(
+        {
+          'powensUserId': powensUserId,
+          // Ajoutez d'autres champs que vous pourriez vouloir sauvegarder/mettre à jour en même temps
+          // 'lastModified': FieldValue.serverTimestamp(), // Exemple
+        },
+        SetOptions(merge: true), // merge:true pour ne pas écraser les autres champs du document
+      );
+      print('AuthService: Powens User ID sauvegardé dans Firestore pour l''utilisateur ${firebaseUser.uid}');
+      // Optionnel: Mettre à jour le modèle local _currentUser si UserModel a un champ powensUserId
+      // if (_currentUser != null) {
+      //   _currentUser = _currentUser!.copyWith(powensUserId: powensUserId); // Supposant une méthode copyWith
+      //   notifyListeners();
+      // }
+    } catch (e) {
+      print('AuthService: Erreur lors de la sauvegarde du Powens User ID dans Firestore: $e');
+      // Gérer l'erreur de manière appropriée (ex: throw)
+    }
+  }
 }

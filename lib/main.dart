@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_core/firebase_core.dart'; // Import pour Firebase.initializeApp()
+import 'package:firebase_core/firebase_core.dart';
+import 'package:intl/date_symbol_data_local.dart'; // Import pour Firebase.initializeApp()
 import 'services/auth_service.dart';
 // import 'services/firebase_service.dart'; // Commenté si initializeFirebase() ne fait que Firebase.initializeApp()
 import 'services/powens_service.dart';
+import 'config/powens_config.dart'; // Ajout de l'import pour PowensConfig
 import 'services/rss_service.dart';
 import 'auth/auth_check.dart';
 import 'package:app_links/app_links.dart'; // Pour la gestion des deep links
@@ -15,11 +17,18 @@ final _appLinks = AppLinks(); // Instance de AppLinks
 StreamSubscription<Uri>? _linkSubscription; // Pour gérer l'abonnement au flux de liens
 
 void main() async {
+  // Assurer l'initialisation des bindings Flutter.
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialiser la localisation pour le formatage des dates (corrige le crash).
+  await initializeDateFormatting('fr_FR', null);
   await Firebase.initializeApp(); // Initialisation directe de Firebase
   
   // Charger les variables d'environnement
   await dotenv.load(fileName: ".env");
+
+  // Charger la configuration Powens (qui utilise dotenv)
+  await PowensConfig.load();
   
   // Initialiser le service POWENS
   final powensService = await PowensService.initialize();

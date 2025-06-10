@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/powens_service.dart'; // Ajout de l'import pour PowensService
+import './bank_connections_screen.dart'; // Ajout de l'import pour l'écran des connexions bancaires
 
 
 class SettingsScreen extends StatefulWidget {
@@ -83,27 +84,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: 'Comptes bancaires',
               subtitle: 'Connectez une nouvelle banque ou gérez vos connexions',
               onTap: () async {
-                // Appeler powensService.login() pour initier la connexion
-                bool? loginInitiated = await powensService.login();
-                if (loginInitiated == true) {
-                  print('Ouverture de l''URL de connexion POWENS...');
-                  // La redirection et la gestion du deep link feront le reste.
-                } else {
-                  print('Échec de l''initiation de la connexion POWENS.');
-                  // Afficher un message d'erreur à l'utilisateur si nécessaire
-                  if (mounted) { // Vérifier si le widget est toujours monté
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Impossible d''initier la connexion bancaire. Veuillez réessayer.')),
-                    );
+                debugPrint('SettingsScreen: "Comptes bancaires" card tapped.');
+
+                if (powensService.connectionIds.isEmpty) {
+                  debugPrint('SettingsScreen: No connections found. Initiating new connection flow.');
+                  
+                  if (powensService.userId == null) {
+                    debugPrint('SettingsScreen: Powens userId is null. Calling initializePowensUserAndGetId().');
+                    final String? powensUserId = await powensService.initializePowensUserAndGetId();
+                    
+                    if (powensUserId == null) {
+                      debugPrint('SettingsScreen: Failed to initialize Powens user.');
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Erreur d\'initialisation du service bancaire.')),
+                        );
+                      }
+                      return;
+                    }
+                    
+                    final authService = Provider.of<AuthService>(context, listen: false);
+                    await authService.savePowensUserId(powensUserId);
+                    debugPrint('SettingsScreen: Powens user initialized and saved to Firebase. UserId: $powensUserId');
+                  } else {
+                      debugPrint('SettingsScreen: Powens userId already exists: ${powensService.userId}. Proceeding to login.');
                   }
+
+                  debugPrint('SettingsScreen: Calling powensService.login() to get webview URL.');
+                  bool? loginInitiated = await powensService.login();
+                  if (loginInitiated == true) {
+                    debugPrint('SettingsScreen: Login successful, webview should be opening.');
+                  } else {
+                    debugPrint('SettingsScreen: powensService.login() failed.');
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Impossible d\'initier la connexion bancaire. Veuillez réessayer.')),
+                      );
+                    }
+                  }
+                } else {
+                  debugPrint('SettingsScreen: Connections found. Navigating to BankConnectionsScreen.');
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const BankConnectionsScreen()),
+                  );
                 }
-                // Pour l'instant, nous ne naviguons plus vers BankConnectionScreen directement ici.
-                // La navigation pourrait se faire après le retour du deep link et la réussite de la connexion.
-                // Ou _navigateToBankConnection pourrait être appelée depuis un autre bouton "Gérer mes banques".
               },
               trailing: Consumer<PowensService>(
                 builder: (context, powensServiceInstance, child) {
-                  bool isConnected = powensServiceInstance.connectionId != null && powensServiceInstance.connectionId!.isNotEmpty;
+                  bool isConnected = powensServiceInstance.connectionIds.isNotEmpty;
                   String badgeText;
                   Color badgeBackgroundColor;
                   Color badgeTextColor;

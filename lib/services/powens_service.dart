@@ -4,76 +4,79 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
-import 'package:url_launcher/url_launcher_string.dart';
 import 'package:uuid/uuid.dart'; // Pour générer le state
+import 'package:url_launcher/url_launcher_string.dart';
 
 import '../config/powens_config.dart';
+import '../models/bank_connection_details_model.dart';
 
 class PowensService with ChangeNotifier {
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
   // Clés pour le stockage sécurisé
-  static const String _permanentUserAuthTokenKey = 'powens_permanent_user_auth_token';
-  static const String _connectionIdKey = 'powens_connection_id';
+  static const String _powensAccessTokenKey = 'powens_access_token';
+  static const String _powensUserIdKey = 'powens_user_id';
+  static const String _powensTokenTypeKey = 'powens_token_type';
+  static const String _connectionIdsKey = 'powens_connection_ids'; // Stocke une liste d'IDs en JSON
   static const String _powensStateKey = 'powens_auth_state'; // Clé pour stocker le state CSRF
 
-  // --- MVP: Placeholder pour le token utilisateur permanent ---
-  // REMPLACEZ CETTE VALEUR PAR VOTRE TOKEN UTILISATEUR PERMANENT OBTENU MANUELLEMENT
-  // Ce token est normalement obtenu via un appel backend sécurisé à POST /2.0/auth/init
-  static const String _placeholderPermanentUserAuthToken = 'apKrQSyuO4fOJi7Kj09G8hs1pcokDEuzE2P9IW45bwUwexl0sfOLxoHEsezDXkyuzFWaz41RCOzXGavXeBukmW_fVcIT3EAPoJCp7cz451_XDqchYu9ODSKkNjE69m2I';
-  // --- Fin Placeholder ---
+  String? _clientId;
+  String? _clientSecret;
 
-  String? _permanentUserAuthToken;
-  String? _connectionId;
+  String? _accessToken;
+  String? _userId;
+  String? _tokenType; // Généralement 'Bearer'
+
+  List<String> _connectionIds = [];
   bool _isAuthenticated = false;
 
   // Getters
   bool get isAuthenticated => _isAuthenticated;
-  String? get permanentUserAuthToken => _permanentUserAuthToken; // Pour debug ou usage futur
-  String? get connectionId => _connectionId; // Pour debug ou usage futur
+  String? get userId => _userId; // Utile pour l'association avec l'utilisateur Leaff
+  // String? get accessToken => _accessToken; // Exposer avec prudence
+  List<String> get connectionIds => _connectionIds;
 
-  // Constructeur et Initialisation
-  // Le constructeur public appelle _loadAuthData pour simplifier l'initialisation depuis l'extérieur.
-  PowensService() {
-    _loadAuthData();
-  }
+  // Constructeur privé
+  PowensService._();
 
-  // Méthode d'initialisation statique si un chargement asynchrone est nécessaire avant la création
+  // Méthode d'initialisation statique pour créer et initialiser le service
   static Future<PowensService> initialize() async {
-    await PowensConfig.load(); // S'assure que PowensConfig est chargé
-    final service = PowensService._internal();
-    await service._loadAuthData(); // Charge les données d'authentification après la config
+    // PowensConfig.load() doit être appelé une fois au démarrage de l'app (ex: dans main.dart).
+    // On suppose ici qu'il a déjà été appelé.
+    // Si ce n'est pas garanti, décommentez la ligne suivante :
+    // await PowensConfig.load(); 
+    
+    final service = PowensService._();
+    service._clientId = PowensConfig.clientId;
+    service._clientSecret = PowensConfig.clientSecret;
+    await service._loadAuthData();
     return service;
   }
 
-  // Constructeur privé utilisé par la méthode d'initialisation statique
-  PowensService._internal();
-
   Future<void> _loadAuthData() async {
     try {
-      _permanentUserAuthToken = await _secureStorage.read(key: _permanentUserAuthTokenKey);
-      _connectionId = await _secureStorage.read(key: _connectionIdKey);
+      _accessToken = await _secureStorage.read(key: _powensAccessTokenKey);
+      _userId = await _secureStorage.read(key: _powensUserIdKey);
+      _tokenType = await _secureStorage.read(key: _powensTokenTypeKey);
 
-      if (_permanentUserAuthToken != null && _permanentUserAuthToken!.isNotEmpty) {
+      if (_accessToken != null && _accessToken!.isNotEmpty &&
+          _userId != null && _userId!.isNotEmpty &&
+          _tokenType != null && _tokenType!.isNotEmpty) {
         _isAuthenticated = true;
+        debugPrint('PowensService: Données d\'authentification chargées depuis le stockage sécurisé.');
       } else {
-        // MVP: Utilisation du placeholder si aucun token n'est stocké
-        _permanentUserAuthToken = _placeholderPermanentUserAuthToken;
-        if (_placeholderPermanentUserAuthToken == 'METTRE_VOTRE_TOKEN_PERMANENT_UTILISATEUR_ICI') {
-            debugPrint('--------------------------------------------------------------------------');
-            debugPrint('ATTENTION: Le token utilisateur permanent POWENS n\'est pas configuré !');
-            debugPrint('Veuillez remplacer la valeur de _placeholderPermanentUserAuthToken dans powens_service.dart');
-            debugPrint('--------------------------------------------------------------------------');
-            _isAuthenticated = false; // Non authentifié si le placeholder n'est pas changé
-        } else {
-            _isAuthenticated = true;
-            // Optionnel: Sauvegarder le placeholder dans le storage pour les sessions suivantes
-            // await _secureStorage.write(key: _permanentUserAuthTokenKey, value: _permanentUserAuthToken!);
-            debugPrint('PowensService: Utilisation du token utilisateur permanent placeholder.');
-        }
+        _isAuthenticated = false;
+        debugPrint('PowensService: Données d\'authentification non trouvées ou incomplètes dans le stockage sécurisé.');
+      }
+
+      final String? connectionIdsJson = await _secureStorage.read(key: _connectionIdsKey);
+      if (connectionIdsJson != null && connectionIdsJson.isNotEmpty) {
+        _connectionIds = List<String>.from(jsonDecode(connectionIdsJson));
+      } else {
+        _connectionIds = [];
       }
     } catch (e) {
-      debugPrint('Erreur lors du chargement des données d\u0027authentification Powens: $e');
+      debugPrint('Erreur lors du chargement des données d\'authentification Powens: $e');
       _isAuthenticated = false;
     }
     notifyListeners();
@@ -81,23 +84,94 @@ class PowensService with ChangeNotifier {
 
   Future<void> _clearAuthData() async {
     await Future.wait([
-      _secureStorage.delete(key: _permanentUserAuthTokenKey),
-      _secureStorage.delete(key: _connectionIdKey),
-      _secureStorage.delete(key: _powensStateKey), // Nettoyer aussi le state CSRF
+      _secureStorage.delete(key: _powensAccessTokenKey),
+      _secureStorage.delete(key: _powensUserIdKey),
+      _secureStorage.delete(key: _powensTokenTypeKey),
+      _secureStorage.delete(key: _connectionIdsKey),
     ]);
-    _permanentUserAuthToken = null;
-    _connectionId = null;
+    _accessToken = null;
+    _userId = null;
+    _tokenType = null;
+    _connectionIds = [];
     _isAuthenticated = false;
     notifyListeners();
+    debugPrint('PowensService: Données d\'authentification et connexions effacées.');
+  }
+
+  /// Initialise un utilisateur Powens (si nécessaire) et obtient un access_token.
+  /// Retourne le `userId` Powens si l'initialisation est réussie, sinon `null`.
+  /// Cette méthode doit être appelée avant toute autre interaction nécessitant une authentification Powens
+  /// si l'utilisateur n'est pas déjà authentifié (par exemple, lors de la première connexion Powens).
+  Future<String?> initializePowensUserAndGetId() async {
+    debugPrint('PowensService: initializePowensUserAndGetId CALLED');
+    if (_isAuthenticated && _userId != null) {
+      debugPrint('PowensService: Exiting early from initializePowensUserAndGetId - already authenticated. UserId: $_userId');
+      return _userId;
+    }
+
+    if (_clientId == null || _clientSecret == null) {
+      debugPrint('ERREUR CRITIQUE: POWENS_CLIENT_ID ou POWENS_CLIENT_SECRET non chargés depuis PowensConfig.');
+      debugPrint('Assurez-vous que PowensConfig.load() est appelé avant d\'utiliser PowensService.');
+      // Tenter de les charger ici en fallback, bien que ce soit mieux dans main.dart
+      await PowensConfig.load(); 
+      _clientId = PowensConfig.clientId;
+      _clientSecret = PowensConfig.clientSecret;
+      if (_clientId == null || _clientSecret == null) {
+        debugPrint('PowensService: Exiting early from initializePowensUserAndGetId - client_id or client_secret is null after fallback load.');
+        return null;
+      }
+    }
+
+    final String authInitUrl = PowensConfig.getAuthInitEndpointUrl();
+    debugPrint('PowensService: Initialisation de l\'utilisateur Powens via: $authInitUrl');
+
+    try {
+      final response = await http.post(
+        Uri.parse(authInitUrl),
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: {
+          'client_id': _clientId!,
+          'client_secret': _clientSecret!,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        _accessToken = data['auth_token']; // Corrigé pour correspondre à la réponse de Powens
+        _userId = data['id_user']?.toString(); // Corrigé pour correspondre à la réponse de Powens
+        _tokenType = 'Bearer'; // Défini à 'Bearer' car 'type: "permanent"' est une métadonnée
+
+        debugPrint('PowensService: Raw response body for /auth/init: ${response.body}');
+        debugPrint('PowensService: Parsed _accessToken: $_accessToken');
+        debugPrint('PowensService: Parsed _userId: $_userId');
+        debugPrint('PowensService: Parsed _tokenType: $_tokenType');
+
+        if (_accessToken != null && _userId != null && _tokenType != null) {
+          await _secureStorage.write(key: _powensAccessTokenKey, value: _accessToken!);
+          await _secureStorage.write(key: _powensUserIdKey, value: _userId!);
+          await _secureStorage.write(key: _powensTokenTypeKey, value: _tokenType!);
+          _isAuthenticated = true;
+          notifyListeners();
+          debugPrint('PowensService: Utilisateur Powens initialisé avec succès. UserId: $_userId, TokenType: $_tokenType');
+          return _userId;
+        } else {
+          debugPrint('Erreur: Données manquantes après parsing de /auth/init. _accessToken is null: ${_accessToken == null}, _userId is null: ${_userId == null}, _tokenType is null: ${_tokenType == null}. Body: ${response.body}');
+          _clearAuthData(); // Nettoyer en cas de réponse partielle
+          return null;
+        }
+      } else {
+        debugPrint('Erreur lors de l\'initialisation de l\'utilisateur Powens: ${response.statusCode} - ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Exception lors de l\'initialisation de l\'utilisateur Powens: $e');
+      return null;
+    }
   }
 
   Future<bool> login() async {
-    // Vérifie si le token est null, vide, ou s'il est toujours égal à la valeur initiale du placeholder.
-    if (_permanentUserAuthToken == null || 
-        _permanentUserAuthToken!.isEmpty || 
-        _permanentUserAuthToken == 'METTRE_VOTRE_TOKEN_PERMANENT_UTILISATEUR_ICI') {
-      debugPrint('Erreur: Token utilisateur permanent Powens non disponible ou non configuré.');
-      debugPrint('Veuillez vérifier la configuration de _placeholderPermanentUserAuthToken ou le stockage sécurisé.');
+    if (!_isAuthenticated || _accessToken == null || _accessToken!.isEmpty) {
+      debugPrint('Erreur: PowensService non authentifié pour le login. Assurez-vous que initializePowensUserAndGetId() a été appelé et a réussi, ou que les données sont chargées.');
       return false;
     }
 
@@ -111,7 +185,7 @@ class PowensService with ChangeNotifier {
       final response = await http.get(
         Uri.parse(tempCodeUrl),
         headers: {
-          'Authorization': 'Bearer $_permanentUserAuthToken',
+          'Authorization': '$_tokenType $_accessToken', // Utilise le tokenType et accessToken stockés
         },
       );
 
@@ -135,21 +209,21 @@ class PowensService with ChangeNotifier {
         if (await canLaunchUrlString(webviewUrl)) {
           final bool launched = await launchUrlString(
             webviewUrl,
-            mode: LaunchMode.externalApplication, // ou LaunchMode.inAppWebView si préféré et configuré
+            mode: LaunchMode.externalApplication,
           );
           if (!launched) {
-            debugPrint('PowensService: Échec du lancement de l\u0027URL de la Webview.');
+            debugPrint('PowensService: Échec du lancement de l\'URL de la Webview.');
             await _secureStorage.delete(key: _powensStateKey);
             return false;
           }
           return true;
         } else {
-          debugPrint('PowensService: Impossible de lancer l\u0027URL de la Webview: $webviewUrl');
+          debugPrint('PowensService: Impossible de lancer l\'URL de la Webview: $webviewUrl');
           await _secureStorage.delete(key: _powensStateKey);
           return false;
         }
       } else {
-        debugPrint('Erreur lors de l\u0027obtention du code temporaire: ${response.statusCode} - ${response.body}');
+        debugPrint('Erreur lors de l\'obtention du code temporaire: ${response.statusCode} - ${response.body}');
         await _secureStorage.delete(key: _powensStateKey);
         return false;
       }
@@ -168,7 +242,7 @@ class PowensService with ChangeNotifier {
     final String? errorDescriptionParam = responseUrl.queryParameters['error_description'];
 
     final String? storedState = await _secureStorage.read(key: _powensStateKey);
-    await _secureStorage.delete(key: _powensStateKey); // Supprimer le state après lecture
+    await _secureStorage.delete(key: _powensStateKey);
 
     if (errorParam != null) {
       debugPrint('Erreur Powens Webview: $errorParam - $errorDescriptionParam');
@@ -185,59 +259,104 @@ class PowensService with ChangeNotifier {
       return false;
     }
 
-    _connectionId = connectionIdParam;
-    await _secureStorage.write(key: _connectionIdKey, value: _connectionId!);
-    debugPrint('PowensService: connection_id stocké avec succès: $_connectionId');
-    // Potentiellement mettre à jour _isAuthenticated ici si la logique le demande, 
-    // mais la présence du permanent token est le principal indicateur.
+    if (!_connectionIds.contains(connectionIdParam)) {
+      _connectionIds.add(connectionIdParam);
+      final String connectionIdsJson = jsonEncode(_connectionIds);
+      await _secureStorage.write(key: _connectionIdsKey, value: connectionIdsJson);
+      debugPrint('PowensService: Connection ID $connectionIdParam ajouté et sauvegardé.');
+    } else {
+      debugPrint('PowensService: Connection ID $connectionIdParam déjà présent.');
+    }
     notifyListeners();
     return true;
   }
 
-  Future<void> logout() async {
-    await _clearAuthData();
-    debugPrint('PowensService: Déconnexion effectuée.');
+  /// Récupère la liste des IDs de connexion pour l'utilisateur Powens authentifié.
+  Future<List<String>> listUserConnections() async {
+    if (!_isAuthenticated || _accessToken == null || _accessToken!.isEmpty || _userId == null || _userId!.isEmpty) {
+      debugPrint('PowensService: Authentification, accessToken ou userId manquant pour listUserConnections.');
+      return [];
+    }
+
+    final String apiUrl = '${PowensConfig.apiBaseUrlV2}/users/$_userId/connections';
+    debugPrint('PowensService: Listage des connexions depuis $apiUrl');
+
+    try {
+      final response = await http.get(
+        Uri.parse(apiUrl),
+        headers: {
+          'Authorization': '$_tokenType $_accessToken',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final dynamic decodedBody = jsonDecode(response.body);
+        List<dynamic> connectionsList;
+
+        if (decodedBody is List) {
+          connectionsList = decodedBody;
+        } else if (decodedBody is Map<String, dynamic> && 
+                   decodedBody.containsKey('connections') && 
+                   decodedBody['connections'] is List) {
+          connectionsList = decodedBody['connections'];
+        } else {
+          debugPrint('Format de réponse inattendu pour listUserConnections: ${response.body}');
+          return [];
+        }
+
+        final List<String> ids = connectionsList
+            .map((conn) => conn['id']?.toString())
+            .where((id) => id != null)
+            .cast<String>()
+            .toList();
+        _connectionIds = ids; // Mettre à jour la liste locale
+        final String connectionIdsJson = jsonEncode(_connectionIds);
+        await _secureStorage.write(key: _connectionIdsKey, value: connectionIdsJson); // Sauvegarder la liste fraîche
+        debugPrint('PowensService: Liste des connexions récupérée: $ids');
+        return ids;
+      } else {
+        debugPrint('PowensService: Erreur lors du listage des connexions. Statut: ${response.statusCode}, Body: ${response.body}');
+        return [];
+      }
+    } catch (e) {
+      debugPrint('PowensService: Exception lors du listage des connexions: $e');
+      return [];
+    }
   }
 
-  // --- Méthodes de l'ancien flux OAuth (commentées/à adapter/supprimer) ---
-  /*
-  Future<void> _saveTokens(
-      String accessToken, String refreshToken, int expiresIn) async {
-    // ... ancienne logique ...
+  Future<BankConnectionDetails?> getConnectionDetails(String connectionId) async {
+    if (!_isAuthenticated || _accessToken == null || _accessToken!.isEmpty || _userId == null || _userId!.isEmpty) {
+      debugPrint('PowensService: Authentification, accessToken ou userId manquant pour getConnectionDetails.');
+      return null;
+    }
+
+    final String apiUrl = '${PowensConfig.apiBaseUrlV2}/users/$_userId/connections/$connectionId?expand=connector';
+    debugPrint('PowensService: Récupération des détails pour connectionId: $connectionId, userId: $_userId depuis $apiUrl');
+
+    try {
+      final response = await http.get(
+        Uri.parse(apiUrl),
+        headers: {
+          'Authorization': '$_tokenType $_accessToken',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> jsonData = jsonDecode(response.body);
+        final Map<String, dynamic> connectionData = jsonData.containsKey('connection') 
+            ? jsonData['connection'] as Map<String, dynamic> 
+            : jsonData;
+        return BankConnectionDetails.fromJson(connectionData);
+      } else {
+        debugPrint('PowensService: Erreur lors de la récupération des détails de la connexion $connectionId. Statut: ${response.statusCode}, Body: ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('PowensService: Exception lors de la récupération des détails de la connexion $connectionId: $e');
+      return null;
+    }
   }
 
-  Future<bool> _refreshAccessToken() async {
-    // ... ancienne logique ...
-    return false;
-  }
-
-  Future<bool> exchangeCodeForTokens(String code, String? receivedState) async {
-    // ... ancienne logique ...
-    return false;
-  }
-
-  Future<Map<String, dynamic>?> getUserInfo() async {
-    // À réimplémenter avec le permanentUserAuthToken et les nouveaux endpoints v2
-    // Nécessitera probablement le connection_id pour certaines opérations
-    if (!_isAuthenticated || _permanentUserAuthToken == null) return null;
-    debugPrint('PowensService: getUserInfo() non implémenté pour le nouveau flux.');
-    return null;
-  }
-
-  Future<List<dynamic>?> getAccounts() async {
-    // À réimplémenter avec le permanentUserAuthToken et les nouveaux endpoints v2
-    // (ex: GET /users/{userId}/connections/{connectionId}/accounts ou /users/me/accounts)
-    if (!_isAuthenticated || _permanentUserAuthToken == null) return null;
-    debugPrint('PowensService: getAccounts() non implémenté pour le nouveau flux.');
-    return null;
-  }
-
-  Future<List<dynamic>?> getTransactions({String? accountId}) async {
-    // À réimplémenter avec le permanentUserAuthToken et les nouveaux endpoints v2
-    // (ex: GET /users/{userId}/connections/{connectionId}/accounts/{accountId}/transactions)
-    if (!_isAuthenticated || _permanentUserAuthToken == null) return null;
-    debugPrint('PowensService: getTransactions() non implémenté pour le nouveau flux.');
-    return null;
-  }
-  */
 }
