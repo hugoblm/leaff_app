@@ -1,35 +1,286 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
-class ExpensesScreen extends StatelessWidget {
+import '../models/transaction_details_model.dart';
+import '../services/powens_service.dart';
+
+class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
+
+  @override
+  State<ExpensesScreen> createState() => _ExpensesScreenState();
+}
+
+class _ExpensesScreenState extends State<ExpensesScreen> {
+  final List<TransactionDetails> _transactions = [];
+  final Map<DateTime, List<TransactionDetails>> _groupedTransactions = {};
+  final ScrollController _scrollController = ScrollController();
+
+  bool _isLoading = true;
+  bool _isFetchingMore = false;
+  String? _nextPageUrl;
+  bool _hasMore = true;
+  String? _error;
+
+  double? _totalBalance;
+  bool _isBalanceLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+    _fetchInitialData();
+  }
+
+  Future<void> _fetchInitialData() async {
+    await Future.wait([
+      _fetchBalance(),
+      _fetchInitialTransactions(),
+    ]);
+  }
+
+  Future<void> _fetchBalance() async {
+    if (!mounted) return;
+    setState(() {
+      _isBalanceLoading = true;
+    });
+
+    try {
+      final accounts = await context.read<PowensService>().getAccounts();
+      if (!mounted) return;
+
+      final total = accounts.fold(0.0, (sum, item) => sum + item.balance);
+      setState(() {
+        _totalBalance = total;
+        _isBalanceLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isBalanceLoading = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200 &&
+        !_isFetchingMore &&
+        _hasMore) {
+      _loadMoreTransactions();
+    }
+  }
+
+  Future<void> _fetchInitialTransactions() async {
+    setState(() {
+      _isLoading = true;
+      _transactions.clear();
+      _groupedTransactions.clear();
+      _hasMore = true;
+      _error = null;
+    });
+
+    try {
+      final powensService = context.read<PowensService>();
+      final transactionPage = await powensService.getTransactions();
+
+      if (mounted) {
+        setState(() {
+          _transactions.addAll(transactionPage.transactions);
+          _groupTransactions();
+          _nextPageUrl = transactionPage.nextUrl;
+          _hasMore = _nextPageUrl != null;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Erreur de chargement des transactions: ${e.toString()}';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadMoreTransactions() async {
+    if (_isFetchingMore || !_hasMore) return;
+
+    setState(() {
+      _isFetchingMore = true;
+    });
+
+    final powensService = context.read<PowensService>();
+    try {
+      final page = await powensService.getTransactions(url: _nextPageUrl);
+      if (mounted) {
+        setState(() {
+          _transactions.addAll(page.transactions);
+          _groupTransactions();
+          _nextPageUrl = page.nextUrl;
+          _hasMore = _nextPageUrl != null;
+          _isFetchingMore = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isFetchingMore = false;
+        });
+      }
+    }
+  }
+
+  void _groupTransactions() {
+    _groupedTransactions.clear();
+    for (final tx in _transactions) {
+      final dateKey = DateTime(tx.date.year, tx.date.month, tx.date.day);
+      if (_groupedTransactions[dateKey] == null) {
+        _groupedTransactions[dateKey] = [];
+      }
+      _groupedTransactions[dateKey]!.add(tx);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6F7),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFFF5F6F7),
         elevation: 0,
         title: const Text(
-          'Expenses & Carbon Score',
+          'Expenses & Carbon score',
           style: TextStyle(
             color: Color(0xFF212529),
             fontWeight: FontWeight.bold,
           ),
         ),
         centerTitle: true,
+        foregroundColor: Colors.black,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(60.0),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: _buildBalanceDisplay(),
+          ),
+        ),
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(20),
-        itemCount: 10,
-        itemBuilder: (context, index) => _buildExpenseCard(context),
-      ),
+      body: _isLoading && _transactions.isEmpty
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(_error!, textAlign: TextAlign.center),
+                ))
+              : RefreshIndicator(
+                  onRefresh: _fetchInitialData,
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    itemCount: _groupedTransactions.length + (_hasMore ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (index == _groupedTransactions.length && _hasMore) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16.0),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      }
+
+                      final date = _groupedTransactions.keys.elementAt(index);
+                      final transactionsForDate = _groupedTransactions[date]!;
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(top: 16, bottom: 36.0),
+                            child: Text(
+                              _formatDateHeader(date),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ),
+                          ...transactionsForDate.map((tx) => _buildExpenseCard(context, tx)).toList(),
+                        ],
+                      );
+                    },
+                  ),
+                ),
     );
   }
 
-  Widget _buildExpenseCard(BuildContext context) {
+  Widget _buildBalanceDisplay() {
+    if (_isBalanceLoading) {
+      return const SizedBox(height: 53); // Affiche un espace vide pendant le chargement
+    }
+
+    if (_totalBalance == null) {
+      return const Text('Solde indisponible');
+    }
+
+    final formattedBalance = NumberFormat.currency(locale: 'fr_FR', symbol: '€').format(_totalBalance);
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const Text(
+          'Solde total',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey,
+          ),
+        ),
+        Text(
+          formattedBalance,
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _formatDateHeader(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+
+    if (date == today) {
+      return 'Today';
+    } else if (date == yesterday) {
+      return 'Yesterday';
+    } else {
+      return DateFormat('d MMMM yyyy', 'fr_FR').format(date);
+    }
+  }
+
+  String _capitalize(String s) {
+    if (s.isEmpty) {
+      return '';
+    }
+    return s[0].toUpperCase() + s.substring(1).toLowerCase();
+  }
+
+  Widget _buildExpenseCard(BuildContext context, TransactionDetails transaction) {
+    final formattedAmount = transaction.amount.abs().toStringAsFixed(2);
+    final amountString = transaction.amount < 0 ? '-€$formattedAmount' : '€$formattedAmount';
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -46,8 +297,8 @@ class ExpensesScreen extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 50,
-              height: 50,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 color: const Color(0xFF212529).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
@@ -55,6 +306,7 @@ class ExpensesScreen extends StatelessWidget {
               child: const Icon(
                 Icons.shopping_cart,
                 color: Color(0xFF212529),
+                size: 18,
               ),
             ),
             const SizedBox(width: 16),
@@ -62,56 +314,90 @@ class ExpensesScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Supermarket Purchase',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
                   Text(
-                    '€45.32',
-                    style: TextStyle(
-                      color: Colors.grey[600],
+                    _capitalize(transaction.wording),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
                       fontSize: 14,
                     ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  // Les badges Catégorie et Score sont maintenant dans une Row
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Catégorie',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 10,
+                                color: Colors.blue,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.label_outline,
+                              size: 16,
+                              color: Colors.blue,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              '??',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 10,
+                                color: Colors.orange,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            const Icon(
+                              Icons.eco,
+                              size: 16,
+                              color: Colors.orange,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            // Le prix et la flèche sont maintenant sur la même ligne et centrés
+            Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        '6.5',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.orange,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.eco,
-                        size: 16,
-                        color: Colors.orange,
-                      ),
-                    ],
+                Text(
+                  amountString,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(width: 8),
                 Icon(
-                  Icons.info_outline,
-                  size: 20,
+                  Icons.arrow_forward_ios,
+                  size: 16,
                   color: Colors.grey[400],
                 ),
               ],

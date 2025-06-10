@@ -17,7 +17,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   
   final List<Widget> _screens = [
     const HomeScreen(),
-    const ExpensesScreen(),
+    ExpensesScreen(),
     const ScanScreen(),
     const ChatScreen(),
     const SettingsScreen(),

@@ -19,6 +19,10 @@ class PowensConfig {
   // Le flux de connexion est un chemin dans webviewBaseUrl, pas un endpoint API direct
   static const String webviewConnectFlowPath = '/connect'; 
 
+  // Endpoints pour la récupération de données
+  static String getUserAccountsEndpoint(String userId) => '/users/$userId/accounts';
+  static String getUserTransactionsEndpoint(String userId) => '/users/$userId/transactions';
+
   static Future<void> load() async {
     await dotenv.load(fileName: ".env");
     _clientId = dotenv.env['POWENS_CLIENT_ID'];

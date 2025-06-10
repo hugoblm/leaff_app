@@ -23,6 +23,8 @@ class _BankConnectionsScreenState extends State<BankConnectionsScreen> {
   @override
   void initState() {
     super.initState();
+    // Ajout de l'écouteur pour le rafraîchissement automatique
+    Provider.of<PowensService>(context, listen: false).addListener(_loadConnectionDetails);
     final powensService = Provider.of<PowensService>(context, listen: false);
     // Si l'userId Powens est déjà disponible (chargé depuis le stockage sécurisé),
     // on charge les détails des connexions.
@@ -30,6 +32,13 @@ class _BankConnectionsScreenState extends State<BankConnectionsScreen> {
       _loadConnectionDetails();
     } 
     // Sinon, la méthode build() affichera l'option pour initialiser l'utilisateur Powens.
+  }
+
+  @override
+  void dispose() {
+    // Suppression de l'écouteur pour éviter les fuites de mémoire
+    Provider.of<PowensService>(context, listen: false).removeListener(_loadConnectionDetails);
+    super.dispose();
   }
 
   Future<void> _initializePowensUser() async {

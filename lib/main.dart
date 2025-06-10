@@ -36,7 +36,12 @@ void main() async {
   // Initialiser la gestion des deep links
   await _initAppLinks(powensService, context: navigatorKey.currentContext);
 
-  runApp(LeaffApp(powensService: powensService));
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => powensService,
+      child: const LeaffApp(),
+    ),
+  );
 }
 
 // Fonction pour initialiser la gestion des deep links
@@ -110,9 +115,7 @@ void _handleIncomingLink(Uri? uri, PowensService powensService, {BuildContext? c
 }
 
 class LeaffApp extends StatelessWidget {
-  final PowensService powensService;
-  
-  const LeaffApp({super.key, required this.powensService});
+  const LeaffApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -120,7 +123,6 @@ class LeaffApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (context) => AuthService()),
         Provider(create: (context) => RSSService()),
-        ChangeNotifierProvider.value(value: powensService),
       ],
       child: MaterialApp(
         title: 'Leaff - Low Carbon Living',

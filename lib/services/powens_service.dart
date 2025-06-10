@@ -9,6 +9,15 @@ import 'package:url_launcher/url_launcher_string.dart';
 
 import '../config/powens_config.dart';
 import '../models/bank_connection_details_model.dart';
+import '../models/account_details_model.dart';
+import '../models/transaction_details_model.dart';
+
+class TransactionPage {
+  final List<TransactionDetails> transactions;
+  final String? nextUrl;
+
+  TransactionPage({required this.transactions, this.nextUrl});
+}
 
 class PowensService with ChangeNotifier {
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
@@ -96,6 +105,75 @@ class PowensService with ChangeNotifier {
     _isAuthenticated = false;
     notifyListeners();
     debugPrint('PowensService: Données d\'authentification et connexions effacées.');
+  }
+
+  // --- DATA FETCHING METHODS ---
+
+  Future<List<AccountDetails>> getAccounts() async {
+    if (!_isAuthenticated || _userId == null) {
+      debugPrint('Erreur: Utilisateur non authentifié pour getAccounts.');
+      return [];
+    }
+
+    final String url = PowensConfig.apiBaseUrlV2 + PowensConfig.getUserAccountsEndpoint(_userId!); 
+    debugPrint('PowensService: Récupération des comptes depuis: $url');
+
+    try {
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': '$_tokenType $_accessToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List<dynamic> accountsJson = data['accounts'];
+        return accountsJson.map((json) => AccountDetails.fromJson(json)).toList();
+      } else {
+        debugPrint('Erreur lors de la récupération des comptes: ${response.statusCode} - ${response.body}');
+        return [];
+      }
+    } catch (e) {
+      debugPrint('Exception lors de la récupération des comptes: $e');
+      return [];
+    }
+  }
+
+  Future<TransactionPage> getTransactions({String? url}) async {
+    if (!_isAuthenticated || _userId == null) {
+      debugPrint('Erreur: Utilisateur non authentifié pour getTransactions.');
+      return TransactionPage(transactions: [], nextUrl: null);
+    }
+
+    // Si aucune URL spécifique n'est fournie, construire l'URL initiale avec une limite.
+    final String requestUrl = url ?? (PowensConfig.apiBaseUrlV2 + PowensConfig.getUserTransactionsEndpoint(_userId!) + '?limit=100');
+    debugPrint('PowensService: Récupération des transactions depuis: $requestUrl');
+
+    try {
+      final response = await http.get(
+        Uri.parse(requestUrl),
+        headers: {
+          'Authorization': '$_tokenType $_accessToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List<dynamic> transactionsJson = data['transactions'];
+        final String? nextUrl = data['next']; // L'API fournit l'URL complète pour la page suivante
+
+        final transactions = transactionsJson.map((json) => TransactionDetails.fromJson(json)).toList();
+        return TransactionPage(transactions: transactions, nextUrl: nextUrl);
+      } else {
+        debugPrint('Erreur lors de la récupération des transactions: ${response.statusCode} - ${response.body}');
+        // Retourner le corps de l'erreur pourrait aider au débogage côté UI
+        throw Exception('Failed to load transactions: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('Exception lors de la récupération des transactions: $e');
+      throw Exception('Exception while loading transactions: $e');
+    }
   }
 
   /// Initialise un utilisateur Powens (si nécessaire) et obtient un access_token.
@@ -264,6 +342,7 @@ class PowensService with ChangeNotifier {
       final String connectionIdsJson = jsonEncode(_connectionIds);
       await _secureStorage.write(key: _connectionIdsKey, value: connectionIdsJson);
       debugPrint('PowensService: Connection ID $connectionIdParam ajouté et sauvegardé.');
+      notifyListeners(); // Notifier les écouteurs que les données ont changé
     } else {
       debugPrint('PowensService: Connection ID $connectionIdParam déjà présent.');
     }
