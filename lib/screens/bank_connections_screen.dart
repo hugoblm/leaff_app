@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/powens_service.dart';
-import '../models/bank_connection_details_model.dart'; // Ajout du modèle
-import 'package:intl/intl.dart'; // Pour le formatage de la date
-import '../services/auth_service.dart'; // Ajout pour AuthService
+import '../models/bank_connection_details_model.dart';
+import 'package:intl/intl.dart';
+import '../services/auth_service.dart';
+import '../theme/app_theme.dart';
 
 class BankConnectionsScreen extends StatefulWidget {
   const BankConnectionsScreen({super.key});
@@ -144,9 +145,9 @@ class _BankConnectionsScreenState extends State<BankConnectionsScreen> {
   }) {
     return Card(
       elevation: 0,
-      color: Colors.white,
+      color: context.surfaceColor,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: context.mediumBorderRadius,
       ),
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
@@ -155,9 +156,8 @@ class _BankConnectionsScreenState extends State<BankConnectionsScreen> {
         leading: leading,
         title: Text(
           title,
-          style: const TextStyle(
+          style: context.bodyLarge.copyWith(
             fontWeight: FontWeight.w600,
-            fontSize: 16,
           ),
         ),
         subtitle: Column(
@@ -168,9 +168,8 @@ class _BankConnectionsScreenState extends State<BankConnectionsScreen> {
               const SizedBox(height: 4),
               Text(
                 subtitle,
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 14,
+                style: context.bodyMedium.copyWith(
+                  color: context.onSurfaceVariantColor,
                 ),
               ),
             ],
@@ -198,7 +197,7 @@ class _BankConnectionsScreenState extends State<BankConnectionsScreen> {
             Icon(
               Icons.arrow_forward_ios,
               size: 16,
-              color: Colors.grey[400],
+              color: context.onSurfaceVariantColor,
             ),
       ),
     );
@@ -216,23 +215,23 @@ class _BankConnectionsScreenState extends State<BankConnectionsScreen> {
       width: 48,
       height: 48,
       decoration: BoxDecoration(
-        color: const Color(0xFFF4F5F7),
+        color: context.grey100,
         borderRadius: BorderRadius.circular(12),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8.0),
         child: logoUrl != null && logoUrl.isNotEmpty
-            ? Image.network(
+              ? Image.network(
                 logoUrl,
                 width: 40,
                 height: 40,
                 fit: BoxFit.contain,
                 errorBuilder: (context, error, stackTrace) =>
-                    const Icon(Icons.account_balance, color: Color(0xFF212529)),
+                    Icon(Icons.account_balance, color: Theme.of(context).colorScheme.onSurface),
               )
-            : const Icon(
+            : Icon(
                 Icons.account_balance,
-                color: Color(0xFF212529),
+                color: Theme.of(context).colorScheme.onSurface,
               ),
       ),
     );
@@ -303,9 +302,9 @@ class _BankConnectionsScreenState extends State<BankConnectionsScreen> {
               ),
               if (_hasLoadingError) ...[
                 const SizedBox(height: 15),
-                const Text(
-                  'Une erreur est survenue. Veuillez réessayer.', 
-                  style: TextStyle(color: Colors.red)
+                Text(
+                  'Une erreur est survenue. Veuillez réessayer. ', 
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)
                 ),
               ]
             ],
@@ -382,17 +381,19 @@ class _BankConnectionsScreenState extends State<BankConnectionsScreen> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6F7),
+      backgroundColor: context.backgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('Mes Connexions Bancaires',
-        style: const TextStyle(
-            color: Color(0xFF212529),
-            fontWeight: FontWeight.bold,
-          ),
-      ),
-      centerTitle: true,
+        title: Text(
+          'Mes Connexions Bancaires',
+          style: context.titleLarge.copyWith(fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+        // Personnalisation de la couleur du bouton de retour
+        iconTheme: IconThemeData(
+          color: context.onSurfaceVariantColor,
+        ),
       ),
       body: Column(
         children: [
@@ -405,9 +406,13 @@ class _BankConnectionsScreenState extends State<BankConnectionsScreen> {
                 icon: const Icon(Icons.add_circle_outline),
                 label: const Text('Ajouter une nouvelle banque'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF366444),
+                  backgroundColor: context.primaryColor,
                   foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, 50),
+                  textStyle: context.bodyLarge.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),

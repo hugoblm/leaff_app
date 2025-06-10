@@ -1,8 +1,11 @@
 import 'dart:convert';
+import 'dart:math' show min; // Ajout de l'import pour la fonction min
 import 'package:http/http.dart' as http;
 import 'package:xml2json/xml2json.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter/foundation.dart'; // Pour ChangeNotifier
+import 'package:flutter/material.dart'; // Pour ChangeNotifier et Notifier
 
 class RSSArticle {
   final String title;
@@ -173,7 +176,7 @@ class RSSArticle {
   }
 }
 
-class RSSService {
+class RSSService with ChangeNotifier {
   static const List<Map<String, String>> _rssFeeds = [
     {
       'url': 'https://reporterre.net/spip.php?page=backend-simple',
@@ -193,219 +196,288 @@ class RSSService {
     },
   ];
 
-  static const String _cacheKey = 'rss_articles_cache';
+  static const String _cacheKey = 'cached_articles';
   static const String _lastFetchKey = 'rss_last_fetch';
   static const String _lastCleanupKey = 'rss_last_cleanup';
 
+  List<RSSArticle> _cachedArticles = [];
+  bool _isLoading = false;
+  String? _error;
+
+  List<RSSArticle> get cachedArticles => List.unmodifiable(_cachedArticles);
+  bool get isLoading => _isLoading;
+  String? get error => _error;
+
   Future<List<RSSArticle>> fetchAllArticles({bool forceRefresh = false}) async {
     try {
-      // Check if we need to clean up old cache
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
+      
+      // Vérifier si nous devons effectuer le nettoyage mensuel
       await _performMonthlyCleanup();
 
-      // Try to load from cache first if not forcing refresh
+      // Vérifier si nous avons des données en cache et si elles sont récentes
       if (!forceRefresh) {
-        final cachedArticles = await _loadFromCache();
-        if (cachedArticles.isNotEmpty) {
-          final lastFetch = await _getLastFetchTime();
-          // Use cache if last fetch was less than 1 hour ago
-          if (lastFetch != null && DateTime.now().difference(lastFetch).inHours < 1) {
-            print('Using cached articles (${cachedArticles.length} articles)');
-            return cachedArticles;
+        final lastFetchTime = await _getLastFetchTime();
+        final now = DateTime.now();
+        final difference = now.difference(lastFetchTime);
+
+        // Si les données ont moins de 30 minutes, on utilise le cache
+        if (difference.inMinutes < 30) {
+          final cachedArticles = await _loadFromCache();
+          if (cachedArticles.isNotEmpty) {
+            _cachedArticles = cachedArticles;
+            _isLoading = false;
+            notifyListeners();
+            return _cachedArticles;
           }
         }
       }
 
-      print('Fetching fresh articles from RSS feeds...');
+      // Si on arrive ici, il faut rafraîchir les données
       List<RSSArticle> allArticles = [];
+      int successCount = 0;
 
+      // Parcourir tous les flux RSS
       for (var feed in _rssFeeds) {
         try {
           final articles = await _fetchFeedArticles(feed['url']!, feed['source']!);
           allArticles.addAll(articles);
+          successCount++;
         } catch (e) {
-          print('Error fetching ${feed['source']}: $e');
-          // Continue with other feeds even if one fails
+          // Si une erreur se produit avec un flux, on continue avec les autres
+          print('Erreur lors de la récupération du flux ${feed['url']}: $e');
         }
       }
 
-      // Filter articles to only include those from the last week
-      final oneWeekAgo = DateTime.now().subtract(const Duration(days: 7));
-      print('Filtering articles from last week...');
-      print('Total articles before filtering: ${allArticles.length}');
-      
-      // First, separate articles with and without pubDate
-      final articlesWithDate = allArticles.where((article) {
-        return article.pubDate != null && article.pubDate!.isAfter(oneWeekAgo);
-      }).toList();
-      
-      final articlesWithoutDate = allArticles.where((article) {
-        return article.pubDate == null;
-      }).toList();
-      
-      print('Articles with date in last week: ${articlesWithDate.length}');
-      print('Articles without date: ${articlesWithoutDate.length}');
-      
-      // Combine articles with date and without date (keeping the most recent)
-      allArticles = [...articlesWithDate, ...articlesWithoutDate];
-      
-      // Sort by publication date (newest first), null dates last
-      allArticles.sort((a, b) {
-        if (a.pubDate == null && b.pubDate == null) return 0;
-        if (a.pubDate == null) return 1;
-        if (b.pubDate == null) return -1;
-        return b.pubDate!.compareTo(a.pubDate!);
-      });
+      // Si aucun flux n'a pu être chargé, on lance une exception
+      if (successCount == 0 && allArticles.isEmpty) {
+        throw Exception('Impossible de charger les articles depuis les flux RSS');
+      }
 
-      // Take the most recent 20 articles
-      final limitedArticles = allArticles.take(20).toList();
-      print('Total articles after filtering and sorting: ${limitedArticles.length}');
-      print('First article date: ${limitedArticles.first.pubDate}');
-      print('Last article date: ${limitedArticles.last.pubDate}');
+      // Trier les articles par date (du plus récent au plus ancien)
+      allArticles.sort((a, b) => (b.pubDate ?? DateTime(1970)).compareTo(a.pubDate ?? DateTime(1970)));
 
-      // Save to cache
+      // Limiter le nombre d'articles pour économiser de l'espace de stockage
+      final limitedArticles = allArticles.take(50).toList();
+
+      // Mettre à jour le cache et l'état
+      _cachedArticles = limitedArticles;
       await _saveToCache(limitedArticles);
       await _updateLastFetchTime();
-
-      print('Fetched and cached ${limitedArticles.length} articles');
-      return limitedArticles;
+      
+      _isLoading = false;
+      notifyListeners();
+      
+      return _cachedArticles;
     } catch (e) {
-      print('Error in fetchAllArticles: $e');
-      // Try to return cached articles as fallback
-      final cachedArticles = await _loadFromCache();
-      if (cachedArticles.isNotEmpty) {
-        print('Returning cached articles as fallback');
-        return cachedArticles;
+      // En cas d'erreur, essayer de retourner le cache s'il existe
+      try {
+        final cachedArticles = await _loadFromCache();
+        if (cachedArticles.isNotEmpty) {
+          _cachedArticles = cachedArticles;
+          _isLoading = false;
+          notifyListeners();
+          return _cachedArticles;
+        }
+      } catch (cacheError) {
+        print('Erreur lors du chargement du cache: $cacheError');
       }
-      throw Exception('Failed to fetch articles and no cache available: $e');
+      
+      _error = 'Impossible de charger les articles: ${e.toString()}';
+      _isLoading = false;
+      notifyListeners();
+      rethrow;
     }
   }
 
   Future<List<RSSArticle>> _fetchFeedArticles(String url, String source) async {
     try {
-      print('Fetching RSS feed from $source at $url');
+      print('Fetching RSS feed from $url');
+      
+      // Vérifier l'URL
+      if (url.isEmpty) {
+        throw Exception('L\'URL du flux RSS est vide');
+      }
       
       final response = await http.get(
         Uri.parse(url),
         headers: {
           'User-Agent': 'Leaff App RSS Reader',
+          'Accept': 'application/rss+xml, application/xml, text/xml',
         },
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
+        if (response.body.isEmpty) {
+          throw Exception('La réponse du serveur est vide');
+        }
+        
         print('Successfully fetched RSS feed (status: ${response.statusCode})');
         print('Response length: ${response.body.length} bytes');
         
-        // Parsing du flux RSS avec xml2json
-        final xmlParser = Xml2Json();
-        xmlParser.parse(response.body);
-        print('XML parsed successfully');
-        
-        final jsonString = xmlParser.toParker();
-        print('JSON conversion successful');
-        
-        final jsonData = json.decode(jsonString);
-        print('JSON parsed successfully');
+        try {
+          // Parsing du flux RSS avec xml2json
+          final xmlParser = Xml2Json();
+          xmlParser.parse(response.body);
+          print('XML parsed successfully');
+          
+          final jsonString = xmlParser.toParker();
+          print('JSON conversion successful');
+          
+          final jsonData = json.decode(jsonString);
+          print('JSON parsed successfully');
 
-        return _parseArticles(jsonData, source);
+          final articles = _parseArticles(jsonData, source);
+          
+          if (articles.isEmpty) {
+            print('Aucun article trouvé dans le flux RSS');
+          } else {
+            print('${articles.length} articles trouvés dans le flux RSS');
+          }
+          
+          return articles;
+        } catch (parseError) {
+          print('Erreur lors du parsing du flux RSS: $parseError');
+          print('Début du contenu XML: ${response.body.substring(0, min(200, response.body.length))}...');
+          throw Exception('Format du flux RSS invalide: $parseError');
+        }
       } else {
-        print('Failed to fetch RSS feed (status: ${response.statusCode})');
-        throw Exception('Failed to load RSS feed: ${response.statusCode}');
+        throw Exception('Échec du chargement du flux RSS (${response.statusCode})');
       }
+    } on http.ClientException catch (e) {
+      print('Erreur de connexion lors de la récupération du flux RSS: $e');
+      throw Exception('Impossible de se connecter au serveur: ${e.message}');
+    } on Exception catch (e) {
+      if (e.toString().contains('TimeoutException')) {
+        print('Délai d\'attente dépassé lors de la récupération du flux RSS');
+        throw Exception('Délai d\'attente dépassé lors de la connexion au serveur');
+      }
+      rethrow;
     } catch (e, stackTrace) {
-      print('Error fetching RSS feed from $url: $e');
+      print('Erreur inattendue lors de la récupération du flux RSS: $e');
       print('Stack trace: $stackTrace');
-      throw Exception('Error fetching RSS feed: $e');
+      throw Exception('Erreur lors de la récupération du flux RSS: $e');
     }
   }
 
   List<RSSArticle> _parseArticles(Map<String, dynamic> jsonData, String source) {
-    List<RSSArticle> articles = [];
+    final List<RSSArticle> articles = [];
+    
     try {
       print('Parsing feed from $source');
       print('JSON data structure: ${jsonData.keys.join(', ')}');
+      
+      // Normaliser la structure des données pour gérer différents formats de flux
       dynamic items;
+      
+      // Format RSS standard
       if (jsonData['rss'] != null) {
         jsonData = jsonData['rss'];
       }
+      
+      // Format RSS avec channel
       if (jsonData['channel'] != null) {
         jsonData = jsonData['channel'];
       }
+      
+      // Trouver les articles dans différentes structures possibles
       if (jsonData['item'] != null) {
         items = jsonData['item'];
-        print('Found items at root level');
+        print('Found items at channel level');
       } else if (jsonData['items'] != null) {
         items = jsonData['items'];
         print('Found items in items array');
       } else if (jsonData['entry'] != null) {
+        // Format Atom
         items = jsonData['entry'];
         print('Found entries in Atom format');
+      } else if (jsonData['rss'] != null && jsonData['rss']['channel'] != null) {
+        // Autre variante de structure RSS
+        final channel = jsonData['rss']['channel'];
+        items = channel['item'] ?? channel['items'] ?? channel['entry'];
+        print('Found items in nested RSS structure');
       } else if (jsonData['content'] != null && jsonData['content']['item'] != null) {
         items = jsonData['content']['item'];
         print('Found items in content section');
       } else {
         print('No items found in RSS/Atom format');
         print('Raw JSON data: $jsonData');
+        return [];
       }
-      if (items != null) {
-        print('Processing ${items is List ? items.length : 1} items');
-        if (items is List) {
-          for (var item in items) {
-            if (item is Map<String, dynamic>) {
-              final title = item['title'] ?? 'No title';
-              final date = item['pubDate'] ?? 'No date';
-              print('Processing item: $title');
-              print('  Date: $date');
-              print('  Raw JSON keys: ${item.keys.join(', ')}');
-              articles.add(RSSArticle.fromJson(item, source));
-            }
-          }
-        } else if (items is Map<String, dynamic>) {
-          final title = items['title'] ?? 'No title';
-          final date = items['pubDate'] ?? 'No date';
-          print('Processing single item: $title');
-          print('  Date: $date');
-          print('  Raw JSON keys: ${items.keys.join(', ')}');
-          articles.add(RSSArticle.fromJson(items, source));
+      
+      // Si aucun article n'a été trouvé, retourner une liste vide
+      if (items == null) {
+        print('Aucun article trouvé dans le flux RSS');
+        return [];
+      }
+      
+      // Gérer le cas où il n'y a qu'un seul article (certains flux retournent un objet au lieu d'une liste)
+      if (items is Map<String, dynamic>) {
+        try {
+          final article = RSSArticle.fromJson(items, source);
+          articles.add(article);
+          print('Article unique trouvé: ${article.title}');
+        } catch (e, stackTrace) {
+          print('Erreur lors du parsing d\'un article unique: $e');
+          print('Stack trace: $stackTrace');
+          print('Données de l\'article: $items');
         }
+      } 
+      // Gérer le cas où il y a plusieurs articles (liste)
+      else if (items is List) {
+        print('${items.length} articles trouvés dans le flux');
+        int parsedCount = 0;
+        
+        for (var item in items) {
+          try {
+            if (item is Map<String, dynamic>) {
+              final article = RSSArticle.fromJson(item, source);
+              articles.add(article);
+              parsedCount++;
+            } else {
+              print('Article ignoré - format invalide: $item');
+            }
+          } catch (e, stackTrace) {
+            print('Erreur lors du parsing d\'un article: $e');
+            print('Stack trace: $stackTrace');
+            print('Données de l\'article en erreur: $item');
+          }
+        }
+        
+        print('$parsedCount articles parsés avec succès sur ${items.length}');
       } else {
-        print('No items to process');
+        print('Format d\'article non reconnu: ${items.runtimeType}');
       }
-    } catch (e) {
-      print('Error parsing articles from $source: $e');
-      print('Stack trace: $e');
+      
+      return articles;
+    } catch (e, stackTrace) {
+      print('Erreur lors du parsing des articles: $e');
+      print('Stack trace: $stackTrace');
+      return [];
     }
-    print('Parsed ${articles.length} articles from $source');
-    return articles;
   }
 
-  // Cache management methods
   Future<void> _saveToCache(List<RSSArticle> articles) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final jsonList = articles.map((article) => article.toJson()).toList();
-      final jsonString = json.encode(jsonList);
-      print('Attempting to save ${articles.length} articles to cache');
-      print('Cache data size: ${jsonString.length} characters');
       
-      // Check if we can save the data
-      if (jsonString.length > 4000000) { // Approximately 4MB limit
-        print('Warning: Cache data exceeds 4MB limit, trying to save a smaller subset');
-        // Try to save only the most recent articles
-        final recentArticles = articles.take(10).toList(); // Save only 10 most recent articles
-        final recentJsonList = recentArticles.map((article) => article.toJson()).toList();
-        final recentJsonString = json.encode(recentJsonList);
-        print('Reduced cache size to: ${recentJsonString.length} characters');
-        await prefs.setString(_cacheKey, recentJsonString);
-        print('Successfully saved reduced cache with ${recentArticles.length} articles');
-      } else {
-        await prefs.setString(_cacheKey, jsonString);
-        print('Successfully saved ${articles.length} articles to cache');
-      }
+      // Convertir les articles en JSON et ajouter la source
+      final articlesJson = articles.map((article) {
+        final json = article.toJson();
+        // Ajouter la source si elle n'est pas déjà présente
+        if (!json.containsKey('source')) {
+          json['source'] = article.category;
+        }
+        return json;
+      }).toList();
+      
+      await prefs.setString(_cacheKey, jsonEncode(articlesJson));
+      _cachedArticles = List.from(articles); // Mettre à jour le cache en mémoire
     } catch (e) {
-      print('Error saving to cache: $e');
-      if (e.toString().contains('SharedPreferences: Failed to write')) {
-        print('Warning: Cache write failed, possibly due to size limit');
-      }
+      print('Erreur lors de la sauvegarde en cache: $e');
+      rethrow;
     }
   }
 
@@ -413,24 +485,21 @@ class RSSService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final cachedData = prefs.getString(_cacheKey);
-      if (cachedData != null) {
-        final jsonList = json.decode(cachedData) as List;
-        final articles = jsonList
-            .map((json) => RSSArticle.fromCachedJson(json as Map<String, dynamic>))
-            .toList();
-        
-        // Filter out articles older than one week
-        final oneWeekAgo = DateTime.now().subtract(const Duration(days: 7));
-        final recentArticles = articles.where((article) {
-          return article.pubDate != null && article.pubDate!.isAfter(oneWeekAgo);
-        }).toList();
-        
-        return recentArticles;
-      }
+      
+      if (cachedData == null) return [];
+      
+      final List<dynamic> jsonList = jsonDecode(cachedData);
+      _cachedArticles = jsonList.map((json) {
+        // Utiliser une source par défaut pour les articles en cache
+        final source = json['source'] ?? 'cache';
+        return RSSArticle.fromJson(json, source);
+      }).toList();
+      return _cachedArticles;
     } catch (e) {
       print('Error loading from cache: $e');
+      _cachedArticles = [];
+      return [];
     }
-    return [];
   }
 
   Future<void> _updateLastFetchTime() async {
@@ -442,70 +511,76 @@ class RSSService {
     }
   }
 
-  Future<DateTime?> _getLastFetchTime() async {
+  Future<DateTime> _getLastFetchTime() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final timeString = prefs.getString(_lastFetchKey);
-      if (timeString != null) {
-        return DateTime.parse(timeString);
-      }
+      final lastFetch = prefs.getString(_lastFetchKey);
+      return lastFetch != null ? DateTime.parse(lastFetch) : DateTime(1970);
     } catch (e) {
-      print('Error getting last fetch time: $e');
+      return DateTime(1970);
     }
-    return null;
   }
 
   Future<void> _performMonthlyCleanup() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final lastCleanupString = prefs.getString(_lastCleanupKey);
-      DateTime? lastCleanup;
+      final lastCleanup = prefs.getString(_lastCleanupKey);
       
-      if (lastCleanupString != null) {
-        lastCleanup = DateTime.parse(lastCleanupString);
+      if (lastCleanup == null) {
+        await prefs.setString(_lastCleanupKey, DateTime.now().toIso8601String());
+        return;
       }
-
-      final now = DateTime.now();
       
-      // Perform cleanup if it's been more than a month since last cleanup
-      if (lastCleanup == null || now.difference(lastCleanup).inDays >= 30) {
-        print('Performing monthly cache cleanup...');
-        
-        // Load current cache
-        final cachedData = prefs.getString(_cacheKey);
-        if (cachedData != null) {
-          final jsonList = json.decode(cachedData) as List;
-          final articles = jsonList
-              .map((json) => RSSArticle.fromCachedJson(json as Map<String, dynamic>))
-              .toList();
-          
-          // Remove articles older than 2 months
-          final twoMonthsAgo = now.subtract(const Duration(days: 60));
-          final recentArticles = articles.where((article) {
-            return article.pubDate != null && article.pubDate!.isAfter(twoMonthsAgo);
-          }).toList();
-          
-          // Save cleaned cache
-          final cleanedJsonList = recentArticles.map((article) => article.toJson()).toList();
-          await prefs.setString(_cacheKey, json.encode(cleanedJsonList));
-          
-          print('Cache cleanup completed. Removed ${articles.length - recentArticles.length} old articles');
-        }
-        
-        // Update last cleanup time
-        await prefs.setString(_lastCleanupKey, now.toIso8601String());
+      final lastCleanupDate = DateTime.parse(lastCleanup);
+      if (DateTime.now().difference(lastCleanupDate).inDays >= 30) {
+        await clearCache();
+        await prefs.setString(_lastCleanupKey, DateTime.now().toIso8601String());
       }
     } catch (e) {
-      print('Error performing monthly cleanup: $e');
+      print('Error during monthly cleanup: $e');
     }
   }
 
-  // Clear all cache (useful for debugging or manual refresh)
+  /// Rafraîchit manuellement les articles en forçant un rechargement
+  Future<void> refreshArticles() async {
+    try {
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
+      
+      // Forcer le rechargement des articles
+      await fetchAllArticles(forceRefresh: true);
+      
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _error = 'Impossible de rafraîchir les articles: $e';
+      _isLoading = false;
+      notifyListeners();
+      rethrow;
+    }
+  }
+  
+  /// Vide le cache des articles
   Future<void> clearCache() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_cacheKey);
-    await prefs.remove(_lastFetchKey);
-    print('Cache cleared');
+    try {
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
+      
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_cacheKey);
+      await prefs.remove(_lastFetchKey);
+      _cachedArticles = [];
+      
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _error = 'Échec de la suppression du cache: $e';
+      _isLoading = false;
+      notifyListeners();
+      rethrow;
+    }
   }
 
   // Récupère le contenu complet d'un article à partir de son URL

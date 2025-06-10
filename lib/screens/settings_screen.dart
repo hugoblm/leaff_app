@@ -3,8 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
-import '../services/powens_service.dart'; // Ajout de l'import pour PowensService
-import './bank_connections_screen.dart'; // Ajout de l'import pour l'écran des connexions bancaires
+import '../services/powens_service.dart';
+import '../theme/app_theme.dart';
+import './bank_connections_screen.dart';
 
 
 class SettingsScreen extends StatefulWidget {
@@ -53,16 +54,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final powensService = Provider.of<PowensService>(context, listen: false); // Obtenir PowensService
     
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6F7),
+      backgroundColor: context.backgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
+        title: Text(
           'Paramètres',
-          style: TextStyle(
-            color: Color(0xFF212529),
-            fontWeight: FontWeight.bold,
-          ),
+          style: context.titleLarge.copyWith(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
       ),
@@ -215,11 +213,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.only(bottom: 16),
       child: Text(
         title,
-        style: const TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: Color(0xFF212529),
-        ),
+        style: context.titleLarge.copyWith(fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -235,15 +229,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: context.surfaceColor,
+        borderRadius: context.mediumBorderRadius,
+        boxShadow: [context.cardShadow],
       ),
       child: ListTile(
         onTap: onTap,
@@ -252,19 +240,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: const Color(0xFF212529).withOpacity(0.1),
+            color: context.onSurfaceColor.withOpacity(0.1),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(
             icon,
-            color: const Color(0xFF212529),
+            color: context.onSurfaceColor,
           ),
         ),
         title: Text(
           title,
-          style: const TextStyle(
+          style: context.bodyLarge.copyWith(
             fontWeight: FontWeight.w600,
-            fontSize: 16,
           ),
         ),
         subtitle: Column(
@@ -272,17 +259,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             Text(
               subtitle,
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 14,
+              style: context.bodyMedium.copyWith(
+                color: context.onSurfaceVariantColor,
               ),
             ),
             if (extraText != null) ...[
               const SizedBox(height: 4),
               Text(
                 extraText,
-                style: TextStyle(
-                  color: Colors.grey[500],
+                style: context.bodyMedium.copyWith(
+                  color: context.grey500,
                   fontSize: 12,
                 ),
               ),
@@ -292,7 +278,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         trailing: trailing ?? Icon(
           Icons.arrow_forward_ios,
           size: 16,
-          color: Colors.grey[400],
+          color: context.onSurfaceVariantColor,
         ),
       ),
     );

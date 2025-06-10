@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart'; // Pour les extensions de contexte
 
 class ScanScreen extends StatelessWidget {
   const ScanScreen({super.key});
@@ -6,31 +7,33 @@ class ScanScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.background,
       appBar: AppBar(
-        title: const Text(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: Text(
           'Scanner',
-          style: TextStyle(
-            color: Color(0xFF212529),
-            fontWeight: FontWeight.bold,
-          ),
+          style: context.titleLarge.copyWith(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
+        iconTheme: IconThemeData(
+          color: context.onSurfaceVariantColor,
+        ),
       ),
-      body: const Center(
+      body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               Icons.document_scanner_rounded,
               size: 80,
-              color: Colors.grey,
+              color: context.onSurfaceVariantColor,
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Text(
               'Fonctionnalité de scan à venir',
-              style: TextStyle(
-                fontSize: 18,
-                color: Colors.grey,
+              style: context.bodyLarge.copyWith(
+                color: context.onSurfaceVariantColor,
               ),
               textAlign: TextAlign.center,
             ),

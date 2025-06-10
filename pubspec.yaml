@@ -39,6 +39,7 @@ dependencies:
   json_serializable: ^6.7.1
   freezed: ^2.4.5
   build_runner: ^2.4.6
+  google_fonts: ^6.1.0 # Pour la gestion des polices Google Fonts
 
 dev_dependencies:
   flutter_test:

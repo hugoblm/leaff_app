@@ -4,7 +4,8 @@ import '../services/auth_service.dart';
 import '../services/rss_service.dart';
 import '../models/user_model.dart';
 import 'package:intl/intl.dart';
-import './article_screen.dart'; // Ajout de l'import pour ArticleScreen
+import '../theme/app_theme.dart'; // Pour les extensions de contexte
+import './article_screen.dart'; // Pour ArticleScreen
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -69,7 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6F7),
+      backgroundColor: context.backgroundColor,
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _refreshArticles,
@@ -91,7 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 'Hello, ${_user?.displayName ?? 'User'}',
                                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                                   fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF212529),
+                                  color: context.onSurfaceColor,
                                 ),
                               ),
                               const SizedBox(height: 4),
@@ -110,7 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 )
                               : CircleAvatar(
                                   radius: 25,
-                                  backgroundColor: const Color(0xFF212529),
+                                  backgroundColor: context.onSurfaceColor,
                                   child: const Icon(
                                     Icons.person,
                                     color: Colors.white,
@@ -140,10 +141,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               if (!_isLoadingArticles && _articles.isNotEmpty)
                                 Text(
                                   '${_articles.length} articles récents',
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontSize: 12,
-                                  ),
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: context.onSurfaceVariantColor,
+                                  ) ?? const TextStyle(fontSize: 12),
                                 ),
                             ],
                           ),
@@ -161,12 +161,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.red.withValues(alpha: 0.1),
+                        color: context.errorColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
                         _errorMessage!,
-                        style: const TextStyle(color: Colors.red),
+                        style: TextStyle(color: context.errorColor),
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -209,7 +209,7 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -235,7 +235,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   width: 60,
                   height: 60,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF212529).withValues(alpha: 0.1),
+                    color: context.onSurfaceColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Center(
@@ -255,7 +255,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: Colors.green.withValues(alpha: 0.1),
+                              color: context.successColor.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -271,7 +271,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           Text(
                             formattedDate,
                             style: TextStyle(
-                              color: Colors.grey[500],
+                              color: context.onSurfaceVariantColor,
                               fontSize: 11,
                             ),
                           ),

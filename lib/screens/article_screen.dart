@@ -36,9 +36,15 @@ class _ArticleScreenState extends State<ArticleScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.background,
       appBar: AppBar(
         title: const Text('Article'),
         centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        iconTheme: IconThemeData(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -69,9 +75,10 @@ class _ArticleScreenState extends State<ArticleScreen> {
                   // Titre
                   Text(
                     article.title,
-                    style: theme.textTheme.headlineSmall?.copyWith(
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
-                    ),
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ) ?? const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   
                   const SizedBox(height: 8),
@@ -81,10 +88,10 @@ class _ArticleScreenState extends State<ArticleScreen> {
                     children: [
                       Text(
                         article.category,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w500,
-                        ),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w500,
+                      ) ?? const TextStyle(fontSize: 12),
                       ),
                       const SizedBox(width: 8),
                       Text(
@@ -107,7 +114,9 @@ class _ArticleScreenState extends State<ArticleScreen> {
                   if (article.content != null && article.content!.isNotEmpty)
                     HtmlWidget(
                       article.content!,
-                      textStyle: theme.textTheme.bodyLarge,
+                      textStyle: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ) ?? const TextStyle(fontSize: 16),
                       onTapUrl: (url) async {
                         _launchURL(url);
                         return false;
@@ -116,7 +125,9 @@ class _ArticleScreenState extends State<ArticleScreen> {
                   else
                     Text(
                       article.description,
-                      style: theme.textTheme.bodyLarge,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ) ?? const TextStyle(fontSize: 16),
                     ),
                   
                   // Bouton pour ouvrir l'article original
@@ -124,10 +135,20 @@ class _ArticleScreenState extends State<ArticleScreen> {
                   Center(
                     child: ElevatedButton.icon(
                       onPressed: () => _launchURL(article.link),
-                      icon: const Icon(Icons.open_in_browser, size: 18),
-                      label: const Text('Lire l\'article original'),
+                      icon: const Icon(Icons.newspaper_rounded, size: 18, color: Colors.white),
+                      label: const Text('Lire l\'article'),
                       style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        foregroundColor: Colors.white, // Texte en blanc
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 2,
+                        textStyle: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                        ),
                       ),
                     ),
                   ),

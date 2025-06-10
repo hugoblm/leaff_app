@@ -2,15 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:intl/date_symbol_data_local.dart'; // Import pour Firebase.initializeApp()
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:app_links/app_links.dart';
+import 'dart:async';
+
 import 'services/auth_service.dart';
-// import 'services/firebase_service.dart'; // Commenté si initializeFirebase() ne fait que Firebase.initializeApp()
 import 'services/powens_service.dart';
-import 'config/powens_config.dart'; // Ajout de l'import pour PowensConfig
-import 'services/rss_service.dart';
+import 'config/powens_config.dart';
+import 'services/rss_service.dart' show RSSService;
 import 'auth/auth_check.dart';
-import 'package:app_links/app_links.dart'; // Pour la gestion des deep links
-import 'dart:async'; // Pour StreamSubscription
+import 'theme/app_theme.dart'; // Import du thème personnalisé
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final _appLinks = AppLinks(); // Instance de AppLinks
@@ -36,6 +38,9 @@ void main() async {
   // Initialiser la gestion des deep links
   await _initAppLinks(powensService, context: navigatorKey.currentContext);
 
+  // Charger la police Instrument Sans
+  GoogleFonts.config.allowRuntimeFetching = true;
+  
   runApp(
     ChangeNotifierProvider(
       create: (context) => powensService,
@@ -121,22 +126,22 @@ class LeaffApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (context) => AuthService()),
-        Provider(create: (context) => RSSService()),
+        ChangeNotifierProvider(create: (_) => AuthService()),
+        ChangeNotifierProvider(create: (_) => RSSService()),
       ],
       child: MaterialApp(
-        title: 'Leaff - Low Carbon Living',
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF212529),
-            brightness: Brightness.light,
-          ),
-          useMaterial3: true,
-          fontFamily: 'Instrument Sans',
-        ),
-        home: const AuthCheck(),
         navigatorKey: navigatorKey,
+        title: 'Leaff',
         debugShowCheckedModeBanner: false,
+        theme: AppTheme.lightTheme.copyWith(
+          textTheme: GoogleFonts.instrumentSansTextTheme(
+            Theme.of(context).textTheme,
+          ),
+        ),
+        // Désactivation du thème sombre pour forcer le thème clair
+        darkTheme: AppTheme.lightTheme, // Utiliser le même thème clair
+        themeMode: ThemeMode.light, // Forcer le thème clair
+        home: const AuthCheck(),
       ),
     );
   }

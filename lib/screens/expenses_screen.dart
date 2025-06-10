@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../models/transaction_details_model.dart';
 import '../services/powens_service.dart';
+import '../theme/app_theme.dart';
 
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
@@ -152,19 +153,18 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6F7),
+      backgroundColor: Theme.of(context).colorScheme.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF5F6F7),
+        backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
-          'Expenses & Carbon score',
-          style: TextStyle(
-            color: Color(0xFF212529),
-            fontWeight: FontWeight.bold,
-          ),
+        title: Text(
+          'Expense & Carbon score',
+          style: context.titleLarge.copyWith(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
-        foregroundColor: Colors.black,
+        iconTheme: IconThemeData(
+          color: context.onSurfaceVariantColor,
+        ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(60.0),
           child: Padding(
@@ -174,7 +174,11 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         ),
       ),
       body: _isLoading && _transactions.isEmpty
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
+              ),
+            )
           : _error != null
               ? Center(
                   child: Padding(
@@ -189,9 +193,13 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                     itemCount: _groupedTransactions.length + (_hasMore ? 1 : 0),
                     itemBuilder: (context, index) {
                       if (index == _groupedTransactions.length && _hasMore) {
-                        return const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 16.0),
-                          child: Center(child: CircularProgressIndicator()),
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 16.0),
+                          child: Center(
+                              child: CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
+                              ),
+                          ),
                         );
                       }
 
@@ -205,10 +213,9 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                             padding: const EdgeInsets.only(top: 16, bottom: 36.0),
                             child: Text(
                               _formatDateHeader(date),
-                              style: const TextStyle(
+                              style: context.titleMedium.copyWith(
                                 fontWeight: FontWeight.bold,
-                                fontSize: 18,
-                                color: Colors.black87,
+                                color: context.onSurfaceColor,
                               ),
                             ),
                           ),
@@ -235,20 +242,20 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const Text(
+        Text(
           'Solde total',
-          style: TextStyle(
-            fontSize: 16,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.w600,
+            fontSize: 16,
             color: Colors.grey,
           ),
         ),
         Text(
           formattedBalance,
-          style: const TextStyle(
-            fontSize: 20,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.bold,
-          ),
+            fontSize: 16,
+          ) ?? const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
       ],
     );
@@ -282,7 +289,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -300,12 +307,12 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: const Color(0xFF212529).withOpacity(0.1),
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.shopping_cart,
-                color: Color(0xFF212529),
+                color: Theme.of(context).colorScheme.onSurface,
                 size: 18,
               ),
             ),
@@ -316,10 +323,9 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                 children: [
                   Text(
                     _capitalize(transaction.wording),
-                    style: const TextStyle(
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
+                    ) ?? const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 8),
@@ -389,16 +395,15 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
               children: [
                 Text(
                   amountString,
-                  style: const TextStyle(
+                  style: context.bodyLarge.copyWith(
                     fontWeight: FontWeight.w600,
-                    fontSize: 15,
                   ),
                 ),
                 const SizedBox(width: 8),
                 Icon(
                   Icons.arrow_forward_ios,
                   size: 16,
-                  color: Colors.grey[400],
+color: context.onSurfaceVariantColor,
                 ),
               ],
             ),

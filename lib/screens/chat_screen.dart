@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -20,18 +21,18 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6F7),
+      backgroundColor: context.backgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
+        title: Text(
           'Eco Assistant',
-          style: TextStyle(
-            color: Color(0xFF212529),
-            fontWeight: FontWeight.bold,
-          ),
+          style: context.titleLarge.copyWith(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
+        iconTheme: IconThemeData(
+          color: context.onSurfaceVariantColor,
+        ),
       ),
       body: Column(
         children: [
@@ -69,7 +70,7 @@ class _ChatScreenState extends State<ChatScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: isUser ? const Color(0xFF212529) : Colors.white,
+                color: isUser ? context.primaryColor : context.surfaceColor,
                 borderRadius: BorderRadius.circular(16).copyWith(
                   bottomRight: isUser ? const Radius.circular(4) : null,
                   bottomLeft: !isUser ? const Radius.circular(4) : null,
@@ -84,17 +85,17 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
               child: Text(
                 text,
-                style: TextStyle(
-                  color: isUser ? Colors.white : const Color(0xFF212529),
-                  fontSize: 14,
-                ),
+                style: context.bodyMedium.copyWith(
+                color: isUser ? context.onPrimaryColor : context.onSurfaceColor,
+                fontWeight: isUser ? FontWeight.w500 : FontWeight.normal,
+              ),
               ),
             ),
             const SizedBox(height: 4),
             Text(
               time,
-              style: TextStyle(
-                color: Colors.grey[600],
+              style: context.bodyMedium.copyWith(
+                color: context.onSurfaceVariantColor,
                 fontSize: 12,
               ),
             ),
@@ -108,7 +109,7 @@ class _ChatScreenState extends State<ChatScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.surfaceColor,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -123,15 +124,17 @@ class _ChatScreenState extends State<ChatScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: const Color(0xFFF5F6F7),
+                color: context.backgroundColor,
                 borderRadius: BorderRadius.circular(25),
               ),
               child: TextField(
                 controller: _messageController,
-                decoration: const InputDecoration(
+                style: TextStyle(color: context.onSurfaceColor),
+                decoration: InputDecoration(
                   hintText: 'Ask about eco-friendly alternatives...',
+                  hintStyle: TextStyle(color: context.onSurfaceVariantColor),
                   border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(vertical: 12),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
                 ),
               ),
             ),
@@ -140,12 +143,19 @@ class _ChatScreenState extends State<ChatScreen> {
           Container(
             width: 48,
             height: 48,
-            decoration: const BoxDecoration(
-              color: Color(0xFF212529),
+            decoration: BoxDecoration(
+              color: context.primaryColor,
               shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: context.primaryColor.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: IconButton(
-              icon: const Icon(Icons.send, color: Colors.white, size: 20),
+              icon: const Icon(Icons.send, color: Colors.white, size: 24),
               onPressed: () {
                 if (_messageController.text.trim().isNotEmpty) {
                   setState(() {
