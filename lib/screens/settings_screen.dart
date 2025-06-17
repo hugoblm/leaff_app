@@ -5,8 +5,7 @@ import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/powens_service.dart';
 import '../theme/app_theme.dart';
-import './bank_connections_screen.dart';
-
+import 'bank_connections_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -22,6 +21,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _loadUserInfo();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final powensService = Provider.of<PowensService>(context, listen: false);
+      await powensService.refreshAllConnectionDetails();
+    });
   }
 
   void _loadUserInfo() {
@@ -124,7 +127,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   debugPrint('SettingsScreen: Connections found. Navigating to BankConnectionsScreen.');
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const BankConnectionsScreen()),
+                    MaterialPageRoute(builder: (context) => const BankConnectionsScreenWrapper()),
                   );
                 }
               },

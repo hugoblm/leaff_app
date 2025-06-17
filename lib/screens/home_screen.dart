@@ -1,311 +1,239 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../services/auth_service.dart';
-import '../services/rss_service.dart';
-import '../models/user_model.dart';
-import 'package:intl/intl.dart';
-import '../theme/app_theme.dart'; // Pour les extensions de contexte
-import './article_screen.dart'; // Pour ArticleScreen
+import 'package:leaff_app/screens/discovery_screen.dart';
+import 'package:leaff_app/screens/eco_news_screen.dart';
+import 'package:leaff_app/screens/eco_tips_screen.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:leaff_app/theme/app_theme.dart';
+
+// --- INDICATEUR CUSTOM POUR TABBAR ---
+class TabTextWidthIndicator extends Decoration {
+  final Color color;
+  final List<String> tabTexts;
+  final TabController controller;
+  final TextStyle? textStyle;
+  final double indicatorHeight;
+  final double indicatorRadius;
+
+  const TabTextWidthIndicator({
+    required this.color,
+    required this.tabTexts,
+    required this.controller,
+    this.textStyle,
+    this.indicatorHeight = 8,
+    this.indicatorRadius = 2,
+  });
+
+  @override
+  BoxPainter createBoxPainter([VoidCallback? onChanged]) {
+    return TabTextWidthPainter(this, controller, tabTexts, textStyle, color, indicatorHeight, indicatorRadius);
+  }
+}
+
+class TabTextWidthPainter extends BoxPainter {
+  final TabTextWidthIndicator decoration;
+  final TabController controller;
+  final List<String> tabTexts;
+  final TextStyle? textStyle;
+  final Color color;
+  final double indicatorHeight;
+  final double indicatorRadius;
+
+  TabTextWidthPainter(this.decoration, this.controller, this.tabTexts, this.textStyle, this.color, this.indicatorHeight, this.indicatorRadius);
+
+  @override
+  void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
+    final Animation<double> animation = controller.animation!;
+    final double t = animation.value - animation.value.floor();
+    int fromIndex = controller.index;
+    int toIndex = controller.index;
+    if (animation.value > controller.index) {
+      toIndex = controller.index + 1;
+    } else if (animation.value < controller.index) {
+      toIndex = controller.index - 1;
+    }
+
+    // Indicateur prend toute la largeur de la box de l'onglet actif
+    final double tabBarWidth = configuration.size!.width;
+    final double tabWidth = tabBarWidth / tabTexts.length;
+    final double left = offset.dx + tabWidth * animation.value;
+    final double top = offset.dy + configuration.size!.height - indicatorHeight;
+    final Rect rect = Rect.fromLTWH(left, top, tabWidth, indicatorHeight);
+    final RRect rrect = RRect.fromRectAndRadius(rect, Radius.circular(indicatorRadius));
+    final Paint paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    canvas.drawRRect(rrect, paint);
+  }
+}
+// --- FIN INDICATEUR CUSTOM ---
+
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<HomeScreen> createState() => HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  UserModel? _user;
-  List<RSSArticle> _articles = [];
-  bool _isLoadingArticles = true;
-  String? _errorMessage;
-
-  late final RSSService _rssService;
+class HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+  final Map<int, ScrollController?> _tabScrollControllers = {0: null, 1: null, 2: null};
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _rssService = Provider.of<RSSService>(context, listen: false);
-    _loadUserInfo();
-    _loadArticles();
-    // Nettoyer le cache et forcer le rafraîchissement
-    _rssService.clearCache();
-    _loadArticles(forceRefresh: true);
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
   }
 
-  void _loadUserInfo() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final authService = Provider.of<AuthService>(context, listen: false);
-      setState(() {
-        _user = authService.getUserInfo();
-      });
-    });
-  }
-
-  Future<void> _loadArticles({bool forceRefresh = false}) async {
-    try {
-      setState(() {
-        _isLoadingArticles = true;
-        _errorMessage = null;
-      });
-
-      final articles = await _rssService.fetchAllArticles(forceRefresh: forceRefresh);
-      
-      setState(() {
-        _articles = articles;
-        _isLoadingArticles = false;
-      });
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Erreur lors du chargement des articles: $e';
-        _isLoadingArticles = false;
-      });
-    }
-  }
-
-  Future<void> _refreshArticles() async {
-    await _loadArticles(forceRefresh: true);
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _tabScrollControllers.values.forEach((controller) => controller?.dispose());
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: context.backgroundColor,
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _refreshArticles,
-          child: CustomScrollView(
-            slivers: [
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Hello, ${_user?.displayName ?? 'User'}',
-                                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: context.onSurfaceColor,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Welcome to Leaff',
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ],
-                          ),
-                          _user?.photoURL != null && _user!.photoURL!.isNotEmpty
-                              ? CircleAvatar(
-                                  radius: 25,
-                                  backgroundImage: NetworkImage(_user!.photoURL!),
-                                )
-                              : CircleAvatar(
-                                  radius: 25,
-                                  backgroundColor: context.onSurfaceColor,
-                                  child: const Icon(
-                                    Icons.person,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                        ],
-                      ),
-                      const SizedBox(height: 30),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Good Ecological News',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF212529),
-                            ),
-                          ),
-                          Row(
-                            children: [
-                              if (_isLoadingArticles)
-                                const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                ),
-                              if (!_isLoadingArticles && _articles.isNotEmpty)
-                                Text(
-                                  '${_articles.length} articles récents',
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: context.onSurfaceVariantColor,
-                                  ) ?? const TextStyle(fontSize: 12),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-                  ),
-                ),
-              ),
-              if (_errorMessage != null)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: context.errorColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        _errorMessage!,
-                        style: TextStyle(color: context.errorColor),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
-                ),
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      if (_articles.isEmpty && !_isLoadingArticles) {
-                        return const Center(
-                          child: Text('Aucun article disponible'),
-                        );
-                      }
-                      if (index >= _articles.length) return null;
-                      return _buildNewsCard(context, _articles[index]);
-                    },
-                    childCount: _articles.isEmpty ? 1 : _articles.length,
-                  ),
-                ),
+      backgroundColor: Theme.of(context).colorScheme.background,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(64),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0F000000), 
+                blurRadius: 16,
+                offset: Offset(0, -2),
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNewsCard(BuildContext context, RSSArticle article) {
-    final dateFormatter = DateFormat('dd MMM yyyy');
-    final formattedDate = article.pubDate != null 
-        ? dateFormatter.format(article.pubDate!) 
-        : 'Date inconnue';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ArticleScreen(article: article),
-              ),
-            );
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    color: context.onSurfaceColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(
-                    child: Text(
-                      article.categoryEmoji,
-                      style: const TextStyle(fontSize: 30),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: context.successColor.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              article.category,
-                              style: const TextStyle(
-                                color: Colors.green,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          const Spacer(),
-                          Text(
-                            formattedDate,
-                            style: TextStyle(
-                              color: context.onSurfaceVariantColor,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        article.title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: Color(0xFF212529),
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        article.description,
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 14,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+          child: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            automaticallyImplyLeading: false,
+            title: AnimatedTabBar(
+              controller: _tabController,
+              tabScrollControllers: _tabScrollControllers,
             ),
+            centerTitle: true,
+            toolbarHeight: 64,
           ),
         ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          DiscoveryScreen(scrollControllerCallback: (controller) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) setState(() => _tabScrollControllers[0] = controller);
+            });
+          }),
+          EcoNewsScreen(scrollControllerCallback: (controller) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) setState(() => _tabScrollControllers[1] = controller);
+            });
+          }),
+          EcoTipsScreen(scrollControllerCallback: (controller) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) setState(() => _tabScrollControllers[2] = controller);
+            });
+          }),
+        ],
       ),
     );
   }
 }
+
+class AnimatedTabBar extends StatefulWidget {
+  final TabController controller;
+  final Map<int, ScrollController?> tabScrollControllers;
+  const AnimatedTabBar({required this.controller, required this.tabScrollControllers});
+
+  @override
+  State<AnimatedTabBar> createState() => AnimatedTabBarState();
+}
+
+class AnimatedTabBarState extends State<AnimatedTabBar> {
+  final Map<int, double> iconOpacities = {0: 1.0, 1: 1.0, 2: 1.0};
+
+  @override
+  void didUpdateWidget(covariant AnimatedTabBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    for (int i = 0; i < 3; i++) {
+      if (widget.tabScrollControllers[i] != oldWidget.tabScrollControllers[i]) {
+        oldWidget.tabScrollControllers[i]?.removeListener(() => _onTabScroll(i));
+        widget.tabScrollControllers[i]?.addListener(() => _onTabScroll(i));
+        _onTabScroll(i);
+      }
+    }
+  }
+
+  void _onTabScroll(int tabIndex) {
+    final controller = widget.tabScrollControllers[tabIndex];
+    final offset = controller?.offset ?? 0.0;
+    final newOpacity = offset <= 0.0 ? 1.0 : 0.0;
+    if (newOpacity != iconOpacities[tabIndex]) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            iconOpacities[tabIndex] = newOpacity;
+          });
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    for (int i = 0; i < 3; i++) {
+      widget.tabScrollControllers[i]?.removeListener(() => _onTabScroll(i));
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TabBar(
+      controller: widget.controller,
+      labelColor: Theme.of(context).colorScheme.primary,
+      unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
+      indicator: TabTextWidthIndicator(
+        color: AppColors.primary,
+        tabTexts: const ['Discovery', 'Eco News', 'Eco Tips'],
+        controller: widget.controller,
+        textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+      ),
+      indicatorWeight: 0, // on gère l'épaisseur dans le custom indicator
+      labelStyle: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+      tabs: [
+        Tab(
+          icon: AnimatedOpacity(
+            opacity: iconOpacities[0]!,
+            duration: const Duration(milliseconds: 250),
+            child: const Icon(Icons.explore),
+          ),
+          text: 'Discovery',
+        ),
+        Tab(
+          icon: AnimatedOpacity(
+            opacity: iconOpacities[1]!,
+            duration: const Duration(milliseconds: 250),
+            child: const Icon(Icons.eco),
+          ),
+          text: 'Eco News',
+        ),
+        Tab(
+          icon: AnimatedOpacity(
+            opacity: iconOpacities[2]!,
+            duration: const Duration(milliseconds: 250),
+            child: const Icon(Icons.tips_and_updates),
+          ),
+          text: 'Eco Tips',
+        ),
+      ],
+    );
+  }
+}
+

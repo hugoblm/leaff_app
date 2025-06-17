@@ -3,11 +3,14 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../models/transaction_details_model.dart';
+import '../models/account_details_model.dart';
+import '../models/bank_connection_details_model.dart';
 import '../services/powens_service.dart';
 import '../theme/app_theme.dart';
 import 'package:leaff_app/services/carbon_score_cache_service.dart';
 import 'package:leaff_app/services/climatiq_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../models/connector_details_model.dart';
 
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
@@ -18,6 +21,10 @@ class ExpensesScreen extends StatefulWidget {
 
 class _ExpensesScreenState extends State<ExpensesScreen> {
   final Map<String, double?> _carbonScores = {}; // id transaction -> score carbone
+  final Map<String, BankConnectionDetails> _connectionsById = {}; // mapping persistant
+  final Map<String, AccountDetails> _accountsById = {}; // mapping accountId -> connectionId
+  final Map<String, ConnectorDetails> _connectorsByUuid = {}; // nouveau mapping connectorUuid -> details
+  int _bankCount = 0; // For badge logic
 
   Future<void> _loadCarbonScoresForTransactions(List<TransactionDetails> transactions) async {
     // Charger le cache persistant
@@ -50,7 +57,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         for (var idx = 0; idx < subBatch.length; idx++) {
           final txId = subBatch[idx]['id'].toString();
           final mappedValue = batchResults[txId];
-          debugPrint('[ExpensesScreen] Mapping batch retour idx:$idx txId:$txId => $mappedValue');
+         // debugPrint('[ExpensesScreen] Mapping batch retour idx:$idx txId:$txId => $mappedValue');
           _carbonScores[txId] = mappedValue;
           if (mappedValue != null) {
             await cache.setScore(txId, mappedValue);
@@ -80,13 +87,38 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     super.initState();
     _scrollController.addListener(_onScroll);
     _fetchInitialData();
+    _loadConnectionsDetails(); // mapping connectionId -> BankConnectionDetails
+    _loadConnectorsDetails(); // mapping connectorUuid -> ConnectorDetails
   }
 
   Future<void> _fetchInitialData() async {
     await Future.wait([
       _fetchBalance(),
       _fetchInitialTransactions(),
+      _fetchAccountsAndConnections(),
     ]);
+  }
+
+  Future<void> _fetchAccountsAndConnections() async {
+    try {
+      final powensService = context.read<PowensService>();
+      final accounts = await powensService.getAccounts();
+      _accountsById.clear();
+      for (final acc in accounts) {
+        _accountsById[acc.id] = acc;
+      }
+      debugPrint('[FETCH ACCOUNTS] _accountsById contenu :');
+      _accountsById.forEach((k, v) {
+        debugPrint('  key: ' + k.toString() + ' (' + k.runtimeType.toString() + '), value: ' + (v == null ? 'null' : v.toString()));
+      });
+      // Get all unique connectionIds from accounts
+      final connectionIds = accounts.map((a) => a.connectionId).toSet().toList();
+      _bankCount = connectionIds.length;
+      // On ne fait plus de getConnectionDetails ici, car on utilise le cache persistant
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint('Erreur lors du chargement des comptes ou banques: $e');
+    }
   }
 
   Future<void> _fetchBalance() async {
@@ -200,6 +232,30 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       }
       _groupedTransactions[dateKey]!.add(tx);
     }
+  }
+
+  Future<void> _loadConnectionsDetails() async {
+    final powensService = context.read<PowensService>();
+    final map = await powensService.loadAllConnectionDetails();
+    setState(() {
+      _connectionsById.clear();
+      _connectionsById.addAll(map);
+    });
+  }
+
+  Future<void> _loadConnectorsDetails() async {
+  // Log d’investigation pour la population du mapping des connecteurs
+  //debugPrint('[CONNECTORS] Début du chargement des connecteurs Powens...');
+    final powensService = context.read<PowensService>();
+    final map = await powensService.loadAllConnectorDetails();
+    setState(() {
+      _connectorsByUuid.clear();
+      _connectorsByUuid.addAll(map);
+     // debugPrint('[CONNECTORS] Mapping _connectorsByUuid après chargement :');
+      _connectorsByUuid.forEach((k, v) {
+       // debugPrint('  uuid: ' + k.toString() + ' → ' + (v == null ? 'null' : v.name.toString()));
+      });
+    });
   }
 
   @override
@@ -335,144 +391,277 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   }
 
   Widget _buildExpenseCard(BuildContext context, TransactionDetails transaction) {
+    // Bank badge logic
+    String? bankName;
+    String? debugAccountId = transaction.accountId;
+    AccountDetails? debugAccount;
+    String? debugConnectionId;
+    BankConnectionDetails? debugConnection;
+    String? debugConnectorUuid;
+    ConnectorDetails? debugConnector;
+    if (_accountsById.isNotEmpty && _connectionsById.isNotEmpty && _bankCount > 1) {
+      debugAccount = _accountsById[transaction.accountId];
+      if (debugAccount != null) {
+        debugConnectionId = debugAccount.connectionId;
+        debugConnection = _connectionsById[debugConnectionId];
+        debugConnectorUuid = debugConnection?.connectorUuid;
+        debugConnector = debugConnectorUuid != null ? _connectorsByUuid[debugConnectorUuid] : null;
+        if (debugConnector != null && (debugConnector.name).isNotEmpty) {
+          bankName = debugConnector.name;
+        }
+      }
+    }
+    // Ajout de logs détaillés
+   /* debugPrint('[POPIN EXPENSE] accountId: \\${debugAccountId}');
+    debugPrint('[POPIN EXPENSE] account: \\${debugAccount?.toString()}');
+    debugPrint('[POPIN EXPENSE] connectionId: \\${debugConnectionId}');
+    debugPrint('[POPIN EXPENSE] connection: \\${debugConnection?.toString()}');
+    debugPrint('[POPIN EXPENSE] connectorUuid: \\${debugConnectorUuid}');
+    debugPrint('[POPIN EXPENSE] connector: \\${debugConnector?.toString()}');
+    debugPrint('[POPIN EXPENSE] bankName: \\${bankName}');*/
     final carbonScore = _carbonScores[transaction.id];
-    debugPrint('[ExpensesScreen] Affichage score carbone pour tx ${transaction.id} : $carbonScore');
+   // debugPrint('[ExpensesScreen] Affichage score carbone pour tx \\${transaction.id} : $carbonScore');
     final formattedAmount = transaction.amount.abs().toStringAsFixed(2);
     final amountString = transaction.amount < 0 ? '-€$formattedAmount' : '€$formattedAmount';
-
-    // Couleur dynamique centralisée dans le thème
     final carbonColor = AppTheme.getCarbonScoreColor(carbonScore);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+    // Ajout de logs pour debug Powens (voir https://docs.powens.com/api-reference/products/data-aggregation/bank-accounts#bankaccountslist-object)
+   // debugPrint('[POPIN EXPENSE] _accountsById keys: ' + _accountsById.keys.map((k) => '$k (${k.runtimeType})').join(', '));
+    //debugPrint('[POPIN EXPENSE] transaction.accountId: \\${transaction.accountId} (type: \\${transaction.accountId.runtimeType})');
+    // Fin logs
+
+    return GestureDetector(
+      onTap: () {
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                Icons.shopping_cart,
-                color: Theme.of(context).colorScheme.onSurface,
-                size: 18,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _capitalize(transaction.wording),
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ) ?? const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Text(
-                        amountString,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ) ?? const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  // Les badges Catégorie et Score sont maintenant dans une Row
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Text(
-                              'Catégorie',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 10,
+          builder: (modalContext) {
+            return Padding(
+              padding: MediaQuery.of(modalContext).viewInsets,
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Ajout d'un fallback visuel "Banque inconnue" si bankName est null
+                    Text(
+                      bankName != null && bankName.isNotEmpty
+                          ? bankName
+                          : 'Banque inconnue',
+                      style: modalContext.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      amountString,
+                      style: modalContext.titleLarge.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _capitalize(transaction.wording),
+                      style: modalContext.bodyLarge,
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        // Badge Catégorie (mock)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.1),
+                            borderRadius: modalContext.badgeBorderRadius,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                transaction.categoryLabel?.isNotEmpty == true
+                                    ? _capitalize(transaction.categoryLabel!)
+                                    : (transaction.category?.isNotEmpty == true
+                                        ? _capitalize(transaction.category!)
+                                        : 'Autre'),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 10,
+                                  color: Colors.blue,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.label_outline,
+                                size: 16,
                                 color: Colors.blue,
                               ),
-                            ),
-                            const SizedBox(width: 4),
-                            Icon(
-                              Icons.label_outline,
-                              size: 16,
-                              color: Colors.blue,
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: carbonColor.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              carbonScore != null
-                                  ? carbonScore.toStringAsFixed(2) + ' kgCO₂e'
-                                  : '??',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 10,
+                        const SizedBox(width: 8),
+                        // Badge Score Carbone
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: carbonColor.withOpacity(0.15),
+                            borderRadius: modalContext.badgeBorderRadius,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                carbonScore != null
+                                    ? carbonScore.toStringAsFixed(2) + ' kgCO₂e'
+                                    : '??',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 10,
+                                  color: carbonColor,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.eco,
+                                size: 16,
                                 color: carbonColor,
                               ),
-                            ),
-                            const SizedBox(width: 4),
-                            Icon(
-                              Icons.eco,
-                              size: 16,
-                              color: carbonColor,
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    // Actions à venir ici
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: context.badgeBorderRadius,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              const SizedBox(width: 1),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _capitalize(transaction.wording),
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ) ?? const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          amountString,
+                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ) ?? const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Les badges Catégorie et Score sont maintenant dans une Row
+                    Row(
+                      children: [
+                       // if (bankBadge != null) bankBadge,
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.1),
+                            borderRadius: context.badgeBorderRadius,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                transaction.categoryLabel?.isNotEmpty == true
+                                    ? _capitalize(transaction.categoryLabel!)
+                                    : (transaction.category?.isNotEmpty == true
+                                        ? _capitalize(transaction.category!)
+                                        : 'Autre'),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 10,
+                                  color: Colors.blue,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.label_outline,
+                                size: 16,
+                                color: Colors.blue,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: carbonColor.withOpacity(0.15),
+                            borderRadius: context.badgeBorderRadius,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                carbonScore != null
+                                    ? carbonScore.toStringAsFixed(2) + ' kgCO₂e'
+                                    : '??',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 10,
+                                  color: carbonColor,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.eco,
+                                size: 16,
+                                color: carbonColor,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              // Le prix et la flèche sont maintenant sur la même ligne et centrés
+              Row(
+                children: [
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    size: 16,
+                    color: context.onSurfaceVariantColor,
                   ),
                 ],
               ),
-            ),
-            // Le prix et la flèche sont maintenant sur la même ligne et centrés
-            Row(
-              children: [
-                const SizedBox(width: 8),
-                Icon(
-                  Icons.arrow_forward_ios,
-                  size: 16,
-                  color: context.onSurfaceVariantColor,
-                ),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

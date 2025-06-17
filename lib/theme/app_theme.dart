@@ -7,26 +7,26 @@ class AppColors {
   static const Color primary = Color(0xFF366444);
   static const Color background = Color(0xFFF5F6F7);
   static const Color surface = Colors.white;
-  
+
   // Texte
   static const Color onPrimary = Color(0xFF212529);
   static const Color onSurface = Color(0xFF212529);
   static const Color onSurfaceVariant = Color(0xFF6C757D);
-  
+
   // Badges
   static const Color success = Color(0xFF198754);
   static const Color successBackground = Color(0x1A198754);
-  
+
   static const Color warning = Color(0xFFFD7E14);
   static const Color warningBackground = Color(0x1AFD7E14);
-  
+
   static const Color info = Color(0xFF0D6EFD);
   static const Color infoBackground = Color(0x1A0D6EFD);
-  
+
   // États
   static const Color error = Color(0xFFDC3545);
   static const Color errorBackground = Color(0x1ADC3545);
-  
+
   // Gris
   static const Color grey100 = Color(0xFFF8F9FA);
   static const Color grey200 = Color(0xFFE9ECEF);
@@ -47,39 +47,39 @@ class AppTextStyles {
     fontWeight: FontWeight.bold,
     color: AppColors.onSurface,
   );
-  
+
   static final TextStyle titleLarge = GoogleFonts.instrumentSans(
     fontSize: 20,
     fontWeight: FontWeight.bold,
     color: AppColors.onSurface,
   );
-  
+
   static final TextStyle titleMedium = GoogleFonts.instrumentSans(
     fontSize: 18,
     fontWeight: FontWeight.w600,
     color: AppColors.onSurfaceVariant,
   );
-  
+
   // Corps de texte
   static final TextStyle bodyLarge = GoogleFonts.instrumentSans(
     fontSize: 16,
     fontWeight: FontWeight.normal,
     color: AppColors.onSurface,
   );
-  
+
   static final TextStyle bodyMedium = GoogleFonts.instrumentSans(
     fontSize: 14,
     fontWeight: FontWeight.normal,
     color: AppColors.onSurfaceVariant,
   );
-  
+
   // Boutons
   static final TextStyle button = GoogleFonts.instrumentSans(
     fontSize: 16,
     fontWeight: FontWeight.w600,
     color: Colors.white,
   );
-  
+
   // Badges
   static final TextStyle badge = GoogleFonts.instrumentSans(
     fontSize: 12,
@@ -89,6 +89,8 @@ class AppTextStyles {
 
 // Thème principal de l'application
 class AppTheme {
+  static const double badgeBorderRadius = 6.0;
+
   /// Couleur dynamique pour le score carbone
   static Color getCarbonScoreColor(double? score) {
     if (score == null) {
@@ -123,7 +125,8 @@ class AppTheme {
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
-        titleTextStyle: AppTextStyles.titleLarge.copyWith(fontWeight: FontWeight.bold),
+        titleTextStyle:
+            AppTextStyles.titleLarge.copyWith(fontWeight: FontWeight.bold),
         foregroundColor: AppColors.onSurface,
         // Style du bouton de retour par défaut
         iconTheme: const IconThemeData(
@@ -168,7 +171,7 @@ class AppTheme {
       ),
     );
   }
-  
+
   // Thème sombre (à compléter selon les besoins)
   static ThemeData get darkTheme {
     return ThemeData.dark().copyWith(
@@ -191,7 +194,7 @@ extension AppColorsExtension on BuildContext {
   Color get warningColor => AppColors.warning;
   Color get infoColor => AppColors.info;
   Color get errorColor => AppColors.error;
-  
+
   // Méthodes pour les couleurs de gris
   Color get grey100 => AppColors.grey100;
   Color get grey200 => AppColors.grey200;
@@ -210,14 +213,14 @@ extension AppTextStylesExtension on BuildContext {
   TextStyle get headlineSmall => AppTextStyles.headlineSmall;
   TextStyle get titleLarge => AppTextStyles.titleLarge;
   TextStyle get titleMedium => AppTextStyles.titleMedium;
-  
+
   // Corps de texte
   TextStyle get bodyLarge => AppTextStyles.bodyLarge;
   TextStyle get bodyMedium => AppTextStyles.bodyMedium;
-  
+
   // Boutons
   TextStyle get button => AppTextStyles.button;
-  
+
   // Badges
   TextStyle get badge => AppTextStyles.badge;
 }
@@ -233,18 +236,22 @@ extension AppBorders on BuildContext {
   BorderRadius get smallBorderRadius => BorderRadius.circular(8);
   BorderRadius get mediumBorderRadius => BorderRadius.circular(12);
   BorderRadius get largeBorderRadius => BorderRadius.circular(16);
-  
+  BorderRadius get badgeBorderRadius =>
+      BorderRadius.circular(AppTheme.badgeBorderRadius);
+
   BoxShadow get cardShadow => BoxShadow(
-    color: Colors.black.withOpacity(0.05),
-    blurRadius: 10,
-    offset: const Offset(0, 4),
-  );
+        color: Colors.black.withOpacity(0.05),
+        blurRadius: 10,
+        offset: const Offset(0, 4),
+      );
 }
 
 // Extension pour les badges
 extension BadgeStyleExtension on BuildContext {
-  (Color, Color) get successBadge => (AppColors.success, AppColors.successBackground);
-  (Color, Color) get warningBadge => (AppColors.warning, AppColors.warningBackground);
+  (Color, Color) get successBadge =>
+      (AppColors.success, AppColors.successBackground);
+  (Color, Color) get warningBadge =>
+      (AppColors.warning, AppColors.warningBackground);
   (Color, Color) get infoBadge => (AppColors.info, AppColors.infoBackground);
   (Color, Color) get errorBadge => (AppColors.error, AppColors.errorBackground);
 }

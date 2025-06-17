@@ -12,6 +12,9 @@ class AccountDetails {
   });
 
   factory AccountDetails.fromJson(Map<String, dynamic> json) {
+    if (json['id'] == null || json['id_connection'] == null || json['balance'] == null) {
+      print('[AccountDetails.fromJson] Champs critiques manquants ou nuls dans le JSON source : $json');
+    }
     return AccountDetails(
       id: json['id'].toString(), // Convertir l'ID numérique en String
       name: json['name'] ?? 'Compte sans nom',

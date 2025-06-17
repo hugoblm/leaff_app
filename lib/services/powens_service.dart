@@ -11,6 +11,7 @@ import '../config/powens_config.dart';
 import '../models/bank_connection_details_model.dart';
 import '../models/account_details_model.dart';
 import '../models/transaction_details_model.dart';
+import '../models/connector_details_model.dart';
 
 class TransactionPage {
   final List<TransactionDetails> transactions;
@@ -20,7 +21,8 @@ class TransactionPage {
 }
 
 class PowensService with ChangeNotifier {
-  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+  // ... (autres champs et méthodes déjà présents)
+
 
   // Clés pour le stockage sécurisé
   static const String _powensAccessTokenKey = 'powens_access_token';
@@ -28,6 +30,10 @@ class PowensService with ChangeNotifier {
   static const String _powensTokenTypeKey = 'powens_token_type';
   static const String _connectionIdsKey = 'powens_connection_ids'; // Stocke une liste d'IDs en JSON
   static const String _powensStateKey = 'powens_auth_state'; // Clé pour stocker le state CSRF
+  static const String _connectionsDetailsKey = 'powens_connections_details'; // Ajouté pour stocker les détails
+  static const String _connectorsDetailsKey = 'powens_connectors_details'; // Ajouté pour stocker les détails des connectors
+
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
   String? _clientId;
   String? _clientSecret;
@@ -59,6 +65,14 @@ class PowensService with ChangeNotifier {
     service._clientId = PowensConfig.clientId;
     service._clientSecret = PowensConfig.clientSecret;
     await service._loadAuthData();
+    // Ajout : déclenche le rafraîchissement des connecteurs si le cache est vide
+    final String? connectorsJson = await service._secureStorage.read(key: _connectorsDetailsKey);
+    if (connectorsJson == null) {
+      debugPrint('[POWENS INIT] Cache connecteurs vide, déclenchement du refreshAllConnectorDetails()...');
+      await service.refreshAllConnectorDetails();
+    } else {
+      debugPrint('[POWENS INIT] Cache connecteurs déjà présent, aucun refresh nécessaire.');
+    }
     return service;
   }
 
@@ -147,7 +161,7 @@ class PowensService with ChangeNotifier {
     }
 
     // Si aucune URL spécifique n'est fournie, construire l'URL initiale avec une limite.
-    final String requestUrl = url ?? (PowensConfig.apiBaseUrlV2 + PowensConfig.getUserTransactionsEndpoint(_userId!) + '?limit=100');
+    final String requestUrl = url ?? (PowensConfig.apiBaseUrlV2 + PowensConfig.getUserTransactionsEndpoint(_userId!) + '?limit=100&expand=categories');
     debugPrint('PowensService: Récupération des transactions depuis: $requestUrl');
 
     try {
@@ -163,6 +177,9 @@ class PowensService with ChangeNotifier {
         final List<dynamic> transactionsJson = data['transactions'];
         final String? nextUrl = data['next']; // L'API fournit l'URL complète pour la page suivante
 
+        for (final txJson in transactionsJson) {
+          debugPrint('[POWENS RAW TRANSACTION] ' + txJson.toString());
+        }
         final transactions = transactionsJson.map((json) => TransactionDetails.fromJson(json)).toList();
         return TransactionPage(transactions: transactions, nextUrl: nextUrl);
       } else {
@@ -346,6 +363,18 @@ class PowensService with ChangeNotifier {
     } else {
       debugPrint('PowensService: Connection ID $connectionIdParam déjà présent.');
     }
+
+    // --- AJOUT : Rafraîchir la liste des connexions et des comptes après callback ---
+    debugPrint('PowensService: Rafraîchissement des connexions et comptes après callback...');
+    final connections = await listUserConnections();
+    debugPrint('PowensService: Connexions après callback: $connections');
+    final accounts = await getAccounts();
+    debugPrint('PowensService: Comptes après callback:');
+    for (final acc in accounts) {
+      debugPrint('  id: \\${acc.id} (type: \\${acc.id.runtimeType}), connectionId: \\${acc.connectionId}');
+    }
+    // --- FIN AJOUT ---
+
     notifyListeners();
     return true;
   }
@@ -404,6 +433,21 @@ class PowensService with ChangeNotifier {
     }
   }
 
+  // --- Méthodes pour stocker et charger les détails de connexion ---
+  Future<void> _storeConnectionDetails(BankConnectionDetails details) async {
+    final String? jsonString = await _secureStorage.read(key: _connectionsDetailsKey);
+    Map<String, dynamic> map = jsonString != null ? jsonDecode(jsonString) : {};
+    map[details.id] = details.toJson();
+    await _secureStorage.write(key: _connectionsDetailsKey, value: jsonEncode(map));
+  }
+
+  Future<Map<String, BankConnectionDetails>> loadAllConnectionDetails() async {
+    final String? jsonString = await _secureStorage.read(key: _connectionsDetailsKey);
+    if (jsonString == null) return {};
+    final Map<String, dynamic> map = jsonDecode(jsonString);
+    return map.map((k, v) => MapEntry(k, BankConnectionDetails.fromJson(v)));
+  }
+
   Future<BankConnectionDetails?> getConnectionDetails(String connectionId) async {
     if (!_isAuthenticated || _accessToken == null || _accessToken!.isEmpty || _userId == null || _userId!.isEmpty) {
       debugPrint('PowensService: Authentification, accessToken ou userId manquant pour getConnectionDetails.');
@@ -427,7 +471,10 @@ class PowensService with ChangeNotifier {
         final Map<String, dynamic> connectionData = jsonData.containsKey('connection') 
             ? jsonData['connection'] as Map<String, dynamic> 
             : jsonData;
-        return BankConnectionDetails.fromJson(connectionData);
+        final details = BankConnectionDetails.fromJson(connectionData);
+        // Ajout : stocker les détails localement
+        await _storeConnectionDetails(details);
+        return details;
       } else {
         debugPrint('PowensService: Erreur lors de la récupération des détails de la connexion $connectionId. Statut: ${response.statusCode}, Body: ${response.body}');
         return null;
@@ -435,6 +482,106 @@ class PowensService with ChangeNotifier {
     } catch (e) {
       debugPrint('PowensService: Exception lors de la récupération des détails de la connexion $connectionId: $e');
       return null;
+    }
+  }
+
+  /// Rafraîchit et stocke les détails de toutes les connexions de l'utilisateur
+  Future<void> refreshAllConnectionDetails() async {
+    final ids = await listUserConnections();
+    for (final id in ids) {
+      final details = await getConnectionDetails(id);
+      if (details != null) {
+        await _storeConnectionDetails(details);
+      }
+    }
+  }
+
+  Future<void> refreshAllConnectorDetails() async {
+  debugPrint('[POWENS] Appel refreshAllConnectorDetails()');
+    final ids = await listUserConnections();
+    final Set<String> connectorUuids = {};
+    for (final id in ids) {
+      final details = await getConnectionDetails(id);
+      if (details?.connectorUuid != null) {
+        connectorUuids.add(details!.connectorUuid!);
+      }
+    }
+    for (final uuid in connectorUuids) {
+      debugPrint('[POWENS] Récupération des détails du connecteur $uuid');
+      final connector = await getConnectorDetails(uuid);
+      if (connector != null) {
+        debugPrint('[POWENS] ConnectorDetails récupéré pour $uuid: ${connector.toJson()}');
+        await _storeConnectorDetails(connector);
+      } else {
+        debugPrint('[POWENS] ConnectorDetails introuvable pour $uuid');
+      }
+    }
+  }
+
+  Future<ConnectorDetails?> getConnectorDetails(String connectorUuid) async {
+  debugPrint('[POWENS] Appel getConnectorDetails($connectorUuid)');
+    final String apiUrl = '${PowensConfig.apiBaseUrlV2}/connectors/$connectorUuid';
+    final response = await http.get(Uri.parse(apiUrl));
+  debugPrint('[POWENS] Réponse API getConnectorDetails: ${response.statusCode} - ${response.body}');
+  if (response.statusCode == 200) {
+      final json = jsonDecode(response.body);
+      return ConnectorDetails.fromJson(json);
+    }
+    return null;
+  }
+
+  Future<void> _storeConnectorDetails(ConnectorDetails details) async {
+  debugPrint('[POWENS] Sauvegarde du connecteur ${details.uuid} → ${details.name}');
+    final String? jsonString = await _secureStorage.read(key: _connectorsDetailsKey);
+    Map<String, dynamic> map = jsonString != null ? jsonDecode(jsonString) : {};
+    map[details.uuid] = details.toJson();
+    await _secureStorage.write(key: _connectorsDetailsKey, value: jsonEncode(map));
+  }
+
+  Future<Map<String, ConnectorDetails>> loadAllConnectorDetails() async {
+  debugPrint('[POWENS] Appel loadAllConnectorDetails()');
+    final String? jsonString = await _secureStorage.read(key: _connectorsDetailsKey);
+  debugPrint('[POWENS] Contenu brut _connectorsDetailsKey: '
+      + (jsonString == null ? 'null' : jsonString));
+  if (jsonString == null) return {};
+  final Map<String, dynamic> map = jsonDecode(jsonString);
+  debugPrint('[POWENS] Map décodée depuis le storage:');
+  map.forEach((k, v) => debugPrint('  $k → $v'));
+  final parsed = map.map((k, v) => MapEntry(k, ConnectorDetails.fromJson(v)));
+  debugPrint('[POWENS] Map finale connectorUuid → ConnectorDetails:');
+  parsed.forEach((k, v) => debugPrint('  $k → ${v.name}'));
+  return parsed;
+}
+
+  /// Supprime une connexion bancaire Powens
+  Future<bool> deleteConnection(String connectionId) async {
+    if (!_isAuthenticated || _accessToken == null || _accessToken!.isEmpty || _userId == null || _userId!.isEmpty) {
+      debugPrint('PowensService: Authentification, accessToken ou userId manquant pour deleteConnection.');
+      return false;
+    }
+    final String apiUrl = '${PowensConfig.apiBaseUrlV2}/users/$_userId/connections/$connectionId';
+    debugPrint('PowensService: Suppression de la connexion $connectionId via $apiUrl');
+    try {
+      final response = await http.delete(
+        Uri.parse(apiUrl),
+        headers: {
+          'Authorization': '$_tokenType $_accessToken',
+          'Content-Type': 'application/json',
+        },
+      );
+      if (response.statusCode == 204 || response.statusCode == 200) {
+        debugPrint('PowensService: Connexion $connectionId supprimée avec succès.');
+        // Met à jour le cache local
+        await refreshAllConnectionDetails();
+        await refreshAllConnectorDetails();
+        return true;
+      } else {
+        debugPrint('PowensService: Erreur lors de la suppression de la connexion $connectionId. Statut: ${response.statusCode}, Body: ${response.body}');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('PowensService: Exception lors de la suppression de la connexion $connectionId: $e');
+      return false;
     }
   }
 

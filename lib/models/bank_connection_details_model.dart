@@ -49,4 +49,16 @@ class BankConnectionDetails {
   String toString() {
     return 'BankConnectionDetails(id: $id, bankName: $bankName, connectorName: $connectorName, status: $status, isActiveFromApi: $isActiveFromApi)';
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'connector_uuid': connectorUuid,
+      'bankName': bankName,
+      'connectorName': connectorName,
+      'status': status,
+      'lastUpdate': lastUpdate?.toIso8601String(),
+      'isActiveFromApi': isActiveFromApi,
+    };
+  }
 }

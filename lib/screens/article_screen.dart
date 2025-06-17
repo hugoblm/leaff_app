@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:leaff_app/widgets/text_utils.dart';
 import 'package:intl/intl.dart';
 import '../services/rss_service.dart';
 
@@ -38,7 +39,7 @@ class _ArticleScreenState extends State<ArticleScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.background,
       appBar: AppBar(
-        title: const Text('Article'),
+        title: Text(cleanRssText(article.title)),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -74,7 +75,7 @@ class _ArticleScreenState extends State<ArticleScreen> {
                 children: [
                   // Titre
                   Text(
-                    article.title,
+                    cleanRssText(article.title),
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.onSurface,
@@ -113,7 +114,7 @@ class _ArticleScreenState extends State<ArticleScreen> {
                   // Contenu de l'article
                   if (article.content != null && article.content!.isNotEmpty)
                     HtmlWidget(
-                      article.content!,
+                      cleanRssText(article.content!),
                       textStyle: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: Theme.of(context).colorScheme.onSurface,
                       ) ?? const TextStyle(fontSize: 16),
@@ -124,7 +125,7 @@ class _ArticleScreenState extends State<ArticleScreen> {
                     )
                   else
                     Text(
-                      article.description,
+                      cleanRssText(article.description),
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: Theme.of(context).colorScheme.onSurface,
                       ) ?? const TextStyle(fontSize: 16),

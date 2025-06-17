@@ -1,11 +1,32 @@
 import 'dart:convert';
-import 'dart:math' show min; // Ajout de l'import pour la fonction min
+import 'dart:math' show min;
 import 'package:http/http.dart' as http;
 import 'package:xml2json/xml2json.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter/foundation.dart'; // Pour ChangeNotifier
-import 'package:flutter/material.dart'; // Pour ChangeNotifier et Notifier
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import '../models/rss_article.dart' as hive_model;
+import 'rss_cache_service.dart';
+
+// Conversion RSSArticle <-> RssArticle (Hive)
+RSSArticle rssArticleFromHive(hive_model.RssArticle a) => RSSArticle(
+  title: a.title,
+  description: a.description,
+  link: a.link,
+  imageUrl: a.imageUrl,
+  pubDate: a.date,
+  category: a.category,
+  content: a.description, // Utilise description comme fallback content
+);
+hive_model.RssArticle rssArticleToHive(RSSArticle a) => hive_model.RssArticle(
+  title: a.title,
+  description: a.description,
+  link: a.link,
+  imageUrl: a.imageUrl ?? '',
+  date: a.pubDate ?? DateTime.now(),
+  category: a.category,
+  // content non utilisé dans Hive pour l'instant
+);
 
 class RSSArticle {
   final String title;
@@ -85,10 +106,23 @@ class RSSArticle {
   }
 
   static String? _extractImageUrl(Map<String, dynamic> json) {
-    // Try to extract image from different possible fields
+    // Champs courants
+    if (json['image'] != null && json['image'] is String && json['image'].toString().isNotEmpty) {
+      return json['image'];
+    }
+    // Enclosure
     if (json['enclosure'] != null && json['enclosure']['url'] != null) {
       return json['enclosure']['url'];
     }
+    // media:content
+    if (json['media:content'] != null) {
+      if (json['media:content'] is Map && json['media:content']['url'] != null) {
+        return json['media:content']['url'];
+      } else if (json['media:content'] is List && json['media:content'].isNotEmpty && json['media:content'][0]['url'] != null) {
+        return json['media:content'][0]['url'];
+      }
+    }
+    // media:thumbnail
     if (json['media:thumbnail'] != null && json['media:thumbnail']['url'] != null) {
       return json['media:thumbnail']['url'];
     }
@@ -196,10 +230,6 @@ class RSSService with ChangeNotifier {
     },
   ];
 
-  static const String _cacheKey = 'cached_articles';
-  static const String _lastFetchKey = 'rss_last_fetch';
-  static const String _lastCleanupKey = 'rss_last_cleanup';
-
   List<RSSArticle> _cachedArticles = [];
   bool _isLoading = false;
   String? _error;
@@ -213,60 +243,36 @@ class RSSService with ChangeNotifier {
       _isLoading = true;
       _error = null;
       notifyListeners();
-      
-      // Vérifier si nous devons effectuer le nettoyage mensuel
-      await _performMonthlyCleanup();
 
-      // Vérifier si nous avons des données en cache et si elles sont récentes
-      if (!forceRefresh) {
-        final lastFetchTime = await _getLastFetchTime();
-        final now = DateTime.now();
-        final difference = now.difference(lastFetchTime);
+      // Init Hive et purge cache >7j
+      await RssCacheService.init();
+      await RssCacheService.purgeOldCache(maxAgeDays: 7);
 
-        // Si les données ont moins de 30 minutes, on utilise le cache
-        if (difference.inMinutes < 30) {
-          final cachedArticles = await _loadFromCache();
-          if (cachedArticles.isNotEmpty) {
-            _cachedArticles = cachedArticles;
-            _isLoading = false;
-            notifyListeners();
-            return _cachedArticles;
-          }
+      // Vérifier si on doit utiliser le cache Hive (<24h)
+      final lastFetch = RssCacheService.getLastFetchDate();
+      final now = DateTime.now();
+      final useCache = !forceRefresh && lastFetch != null && now.difference(lastFetch).inHours < 24;
+      if (useCache) {
+        final cached = RssCacheService.getCachedArticles().map(rssArticleFromHive).toList();
+        if (cached.isNotEmpty) {
+          _cachedArticles = cached;
+          _isLoading = false;
+          notifyListeners();
+          return _cachedArticles;
         }
       }
 
-      // Si on arrive ici, il faut rafraîchir les données
-      List<RSSArticle> allArticles = [];
-      int successCount = 0;
-
-      // Parcourir tous les flux RSS
-      for (var feed in _rssFeeds) {
-        try {
-          final articles = await _fetchFeedArticles(feed['url']!, feed['source']!);
-          allArticles.addAll(articles);
-          successCount++;
-        } catch (e) {
-          // Si une erreur se produit avec un flux, on continue avec les autres
-          print('Erreur lors de la récupération du flux ${feed['url']}: $e');
-        }
+      // Sinon, fetch réseau
+      final List<RSSArticle> allArticles = [];
+      for (final feed in _rssFeeds) {
+        final articles = await _fetchFeedArticles(feed['url']!, feed['source']!);
+        allArticles.addAll(articles);
       }
-
-      // Si aucun flux n'a pu être chargé, on lance une exception
-      if (successCount == 0 && allArticles.isEmpty) {
-        throw Exception('Impossible de charger les articles depuis les flux RSS');
-      }
-
-      // Trier les articles par date (du plus récent au plus ancien)
-      allArticles.sort((a, b) => (b.pubDate ?? DateTime(1970)).compareTo(a.pubDate ?? DateTime(1970)));
-
-      // Limiter le nombre d'articles pour économiser de l'espace de stockage
+      allArticles.sort((a, b) => b.pubDate?.compareTo(a.pubDate ?? DateTime(1970)) ?? 0);
+      // Limite à 50 articles pour économiser l'espace
       final limitedArticles = allArticles.take(50).toList();
-
-      // Mettre à jour le cache et l'état
+      await RssCacheService.saveArticles(limitedArticles.map(rssArticleToHive).toList());
       _cachedArticles = limitedArticles;
-      await _saveToCache(limitedArticles);
-      await _updateLastFetchTime();
-      
       _isLoading = false;
       notifyListeners();
       
@@ -274,15 +280,15 @@ class RSSService with ChangeNotifier {
     } catch (e) {
       // En cas d'erreur, essayer de retourner le cache s'il existe
       try {
-        final cachedArticles = await _loadFromCache();
-        if (cachedArticles.isNotEmpty) {
-          _cachedArticles = cachedArticles;
+        final cached = RssCacheService.getCachedArticles().map(rssArticleFromHive).toList();
+        if (cached.isNotEmpty) {
+          _cachedArticles = cached;
           _isLoading = false;
           notifyListeners();
           return _cachedArticles;
         }
       } catch (cacheError) {
-        print('Erreur lors du chargement du cache: $cacheError');
+        print('Erreur lors du fallback cache Hive: $cacheError');
       }
       
       _error = 'Impossible de charger les articles: ${e.toString()}';
@@ -459,87 +465,18 @@ class RSSService with ChangeNotifier {
     }
   }
 
-  Future<void> _saveToCache(List<RSSArticle> articles) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      
-      // Convertir les articles en JSON et ajouter la source
-      final articlesJson = articles.map((article) {
-        final json = article.toJson();
-        // Ajouter la source si elle n'est pas déjà présente
-        if (!json.containsKey('source')) {
-          json['source'] = article.category;
-        }
-        return json;
-      }).toList();
-      
-      await prefs.setString(_cacheKey, jsonEncode(articlesJson));
-      _cachedArticles = List.from(articles); // Mettre à jour le cache en mémoire
-    } catch (e) {
-      print('Erreur lors de la sauvegarde en cache: $e');
-      rethrow;
-    }
-  }
+  // plus utilisé, remplacé par Hive/RssCacheService
 
-  Future<List<RSSArticle>> _loadFromCache() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final cachedData = prefs.getString(_cacheKey);
-      
-      if (cachedData == null) return [];
-      
-      final List<dynamic> jsonList = jsonDecode(cachedData);
-      _cachedArticles = jsonList.map((json) {
-        // Utiliser une source par défaut pour les articles en cache
-        final source = json['source'] ?? 'cache';
-        return RSSArticle.fromJson(json, source);
-      }).toList();
-      return _cachedArticles;
-    } catch (e) {
-      print('Error loading from cache: $e');
-      _cachedArticles = [];
-      return [];
-    }
-  }
 
-  Future<void> _updateLastFetchTime() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_lastFetchKey, DateTime.now().toIso8601String());
-    } catch (e) {
-      print('Error updating last fetch time: $e');
-    }
-  }
+  // plus utilisé, remplacé par Hive/RssCacheService
 
-  Future<DateTime> _getLastFetchTime() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final lastFetch = prefs.getString(_lastFetchKey);
-      return lastFetch != null ? DateTime.parse(lastFetch) : DateTime(1970);
-    } catch (e) {
-      return DateTime(1970);
-    }
-  }
 
-  Future<void> _performMonthlyCleanup() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final lastCleanup = prefs.getString(_lastCleanupKey);
-      
-      if (lastCleanup == null) {
-        await prefs.setString(_lastCleanupKey, DateTime.now().toIso8601String());
-        return;
-      }
-      
-      final lastCleanupDate = DateTime.parse(lastCleanup);
-      if (DateTime.now().difference(lastCleanupDate).inDays >= 30) {
-        await clearCache();
-        await prefs.setString(_lastCleanupKey, DateTime.now().toIso8601String());
-      }
-    } catch (e) {
-      print('Error during monthly cleanup: $e');
-    }
-  }
+  // plus utilisé, remplacé par Hive/RssCacheService
+
+
+  // plus utilisé, remplacé par Hive/RssCacheService
+
+
 
   /// Rafraîchit manuellement les articles en forçant un rechargement
   Future<void> refreshArticles() async {
@@ -561,18 +498,16 @@ class RSSService with ChangeNotifier {
     }
   }
   
-  /// Vide le cache des articles
+  /// Vide le cache des articles (Hive)
   Future<void> clearCache() async {
     try {
       _isLoading = true;
       _error = null;
       notifyListeners();
-      
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_cacheKey);
-      await prefs.remove(_lastFetchKey);
+
+      await RssCacheService.clearCache();
       _cachedArticles = [];
-      
+
       _isLoading = false;
       notifyListeners();
     } catch (e) {
