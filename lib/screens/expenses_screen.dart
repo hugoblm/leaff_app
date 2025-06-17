@@ -20,13 +20,18 @@ class ExpensesScreen extends StatefulWidget {
 }
 
 class _ExpensesScreenState extends State<ExpensesScreen> {
-  final Map<String, double?> _carbonScores = {}; // id transaction -> score carbone
-  final Map<String, BankConnectionDetails> _connectionsById = {}; // mapping persistant
-  final Map<String, AccountDetails> _accountsById = {}; // mapping accountId -> connectionId
-  final Map<String, ConnectorDetails> _connectorsByUuid = {}; // nouveau mapping connectorUuid -> details
+  final Map<String, double?> _carbonScores =
+      {}; // id transaction -> score carbone
+  final Map<String, BankConnectionDetails> _connectionsById =
+      {}; // mapping persistant
+  final Map<String, AccountDetails> _accountsById =
+      {}; // mapping accountId -> connectionId
+  final Map<String, ConnectorDetails> _connectorsByUuid =
+      {}; // nouveau mapping connectorUuid -> details
   int _bankCount = 0; // For badge logic
 
-  Future<void> _loadCarbonScoresForTransactions(List<TransactionDetails> transactions) async {
+  Future<void> _loadCarbonScoresForTransactions(
+      List<TransactionDetails> transactions) async {
     // Charger le cache persistant
     final cache = await CarbonScoreCacheService.getInstance();
     final List<Map<String, dynamic>> batchToFetch = [];
@@ -41,7 +46,8 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         batchToFetch.add({
           'id': tx.id,
           'amount': tx.amount.abs(), // montant absolu
-          'currency': 'eur', // fallback, à remplacer par tx.currency quand dispo
+          'currency':
+              'eur', // fallback, à remplacer par tx.currency quand dispo
         });
       }
     }
@@ -51,13 +57,17 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       final climatiq = ClimatiqService(apiKey: apiKey);
       const int batchSize = 5;
       for (var i = 0; i < batchToFetch.length; i += batchSize) {
-        final subBatch = batchToFetch.sublist(i, (i + batchSize > batchToFetch.length) ? batchToFetch.length : i + batchSize);
+        final subBatch = batchToFetch.sublist(
+            i,
+            (i + batchSize > batchToFetch.length)
+                ? batchToFetch.length
+                : i + batchSize);
         final batchResults = await climatiq.estimateCarbonBatch(subBatch);
         // Debug mapping retour
         for (var idx = 0; idx < subBatch.length; idx++) {
           final txId = subBatch[idx]['id'].toString();
           final mappedValue = batchResults[txId];
-         // debugPrint('[ExpensesScreen] Mapping batch retour idx:$idx txId:$txId => $mappedValue');
+          debugPrint('[ExpensesScreen] Mapping batch retour idx:$idx txId:$txId => $mappedValue');
           _carbonScores[txId] = mappedValue;
           if (mappedValue != null) {
             await cache.setScore(txId, mappedValue);
@@ -66,7 +76,6 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         if (mounted) setState(() {});
       }
     }
-
   }
 
   final List<TransactionDetails> _transactions = [];
@@ -109,10 +118,16 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       }
       debugPrint('[FETCH ACCOUNTS] _accountsById contenu :');
       _accountsById.forEach((k, v) {
-        debugPrint('  key: ' + k.toString() + ' (' + k.runtimeType.toString() + '), value: ' + (v == null ? 'null' : v.toString()));
+        debugPrint('  key: ' +
+            k.toString() +
+            ' (' +
+            k.runtimeType.toString() +
+            '), value: ' +
+            (v == null ? 'null' : v.toString()));
       });
       // Get all unique connectionIds from accounts
-      final connectionIds = accounts.map((a) => a.connectionId).toSet().toList();
+      final connectionIds =
+          accounts.map((a) => a.connectionId).toSet().toList();
       _bankCount = connectionIds.length;
       // On ne fait plus de getConnectionDetails ici, car on utilise le cache persistant
       if (mounted) setState(() {});
@@ -152,7 +167,8 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200 &&
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 200 &&
         !_isFetchingMore &&
         _hasMore) {
       _loadMoreTransactions();
@@ -244,16 +260,16 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   }
 
   Future<void> _loadConnectorsDetails() async {
-  // Log d’investigation pour la population du mapping des connecteurs
-  //debugPrint('[CONNECTORS] Début du chargement des connecteurs Powens...');
+    // Log d’investigation pour la population du mapping des connecteurs
+    //debugPrint('[CONNECTORS] Début du chargement des connecteurs Powens...');
     final powensService = context.read<PowensService>();
     final map = await powensService.loadAllConnectorDetails();
     setState(() {
       _connectorsByUuid.clear();
       _connectorsByUuid.addAll(map);
-     // debugPrint('[CONNECTORS] Mapping _connectorsByUuid après chargement :');
+      // debugPrint('[CONNECTORS] Mapping _connectorsByUuid après chargement :');
       _connectorsByUuid.forEach((k, v) {
-       // debugPrint('  uuid: ' + k.toString() + ' → ' + (v == null ? 'null' : v.name.toString()));
+        // debugPrint('  uuid: ' + k.toString() + ' → ' + (v == null ? 'null' : v.name.toString()));
       });
     });
   }
@@ -284,7 +300,8 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       body: _isLoading && _transactions.isEmpty
           ? Center(
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                    Theme.of(context).colorScheme.primary),
               ),
             )
           : _error != null
@@ -304,9 +321,10 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 16.0),
                           child: Center(
-                              child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
-                              ),
+                            child: CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                  Theme.of(context).colorScheme.primary),
+                            ),
                           ),
                         );
                       }
@@ -318,7 +336,8 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Padding(
-                            padding: const EdgeInsets.only(top: 16, bottom: 36.0),
+                            padding:
+                                const EdgeInsets.only(top: 16, bottom: 36.0),
                             child: Text(
                               _formatDateHeader(date),
                               style: context.titleMedium.copyWith(
@@ -327,7 +346,9 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                               ),
                             ),
                           ),
-                          ...transactionsForDate.map((tx) => _buildExpenseCard(context, tx)).toList(),
+                          ...transactionsForDate
+                              .map((tx) => _buildExpenseCard(context, tx))
+                              .toList(),
                         ],
                       );
                     },
@@ -338,14 +359,16 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
 
   Widget _buildBalanceDisplay() {
     if (_isBalanceLoading) {
-      return const SizedBox(height: 53); // Affiche un espace vide pendant le chargement
+      return const SizedBox(
+          height: 53); // Affiche un espace vide pendant le chargement
     }
 
     if (_totalBalance == null) {
       return const Text('Solde indisponible');
     }
 
-    final formattedBalance = NumberFormat.currency(locale: 'fr_FR', symbol: '€').format(_totalBalance);
+    final formattedBalance = NumberFormat.currency(locale: 'fr_FR', symbol: '€')
+        .format(_totalBalance);
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -353,17 +376,18 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         Text(
           'Solde total',
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w600,
-            fontSize: 16,
-            color: Colors.grey,
-          ),
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+                color: Colors.grey,
+              ),
         ),
         Text(
           formattedBalance,
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ) ?? const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                  ) ??
+              const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
       ],
     );
@@ -383,6 +407,22 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     }
   }
 
+  String _formatTransactionDate(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final transactionDate = DateTime(date.year, date.month, date.day);
+
+    if (transactionDate == today) {
+      return "Aujourd'hui";
+    } else if (transactionDate == yesterday) {
+      return 'Hier';
+    } else {
+      final formatter = DateFormat('d MMMM y', 'fr_FR');
+      return formatter.format(date);
+    }
+  }
+
   String _capitalize(String s) {
     if (s.isEmpty) {
       return '';
@@ -390,7 +430,8 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     return s[0].toUpperCase() + s.substring(1).toLowerCase();
   }
 
-  Widget _buildExpenseCard(BuildContext context, TransactionDetails transaction) {
+  Widget _buildExpenseCard(
+      BuildContext context, TransactionDetails transaction) {
     // Bank badge logic
     String? bankName;
     String? debugAccountId = transaction.accountId;
@@ -399,20 +440,24 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     BankConnectionDetails? debugConnection;
     String? debugConnectorUuid;
     ConnectorDetails? debugConnector;
-    if (_accountsById.isNotEmpty && _connectionsById.isNotEmpty && _bankCount > 1) {
+    if (_accountsById.isNotEmpty &&
+        _connectionsById.isNotEmpty &&
+        _bankCount > 1) {
       debugAccount = _accountsById[transaction.accountId];
       if (debugAccount != null) {
         debugConnectionId = debugAccount.connectionId;
         debugConnection = _connectionsById[debugConnectionId];
         debugConnectorUuid = debugConnection?.connectorUuid;
-        debugConnector = debugConnectorUuid != null ? _connectorsByUuid[debugConnectorUuid] : null;
+        debugConnector = debugConnectorUuid != null
+            ? _connectorsByUuid[debugConnectorUuid]
+            : null;
         if (debugConnector != null && (debugConnector.name).isNotEmpty) {
           bankName = debugConnector.name;
         }
       }
     }
     // Ajout de logs détaillés
-   /* debugPrint('[POPIN EXPENSE] accountId: \\${debugAccountId}');
+    /* debugPrint('[POPIN EXPENSE] accountId: \\${debugAccountId}');
     debugPrint('[POPIN EXPENSE] account: \\${debugAccount?.toString()}');
     debugPrint('[POPIN EXPENSE] connectionId: \\${debugConnectionId}');
     debugPrint('[POPIN EXPENSE] connection: \\${debugConnection?.toString()}');
@@ -420,13 +465,14 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     debugPrint('[POPIN EXPENSE] connector: \\${debugConnector?.toString()}');
     debugPrint('[POPIN EXPENSE] bankName: \\${bankName}');*/
     final carbonScore = _carbonScores[transaction.id];
-   // debugPrint('[ExpensesScreen] Affichage score carbone pour tx \\${transaction.id} : $carbonScore');
+    // debugPrint('[ExpensesScreen] Affichage score carbone pour tx \\${transaction.id} : $carbonScore');
     final formattedAmount = transaction.amount.abs().toStringAsFixed(2);
-    final amountString = transaction.amount < 0 ? '-€$formattedAmount' : '€$formattedAmount';
+    final amountString =
+        transaction.amount < 0 ? '-€$formattedAmount' : '€$formattedAmount';
     final carbonColor = AppTheme.getCarbonScoreColor(carbonScore);
 
     // Ajout de logs pour debug Powens (voir https://docs.powens.com/api-reference/products/data-aggregation/bank-accounts#bankaccountslist-object)
-   // debugPrint('[POPIN EXPENSE] _accountsById keys: ' + _accountsById.keys.map((k) => '$k (${k.runtimeType})').join(', '));
+    // debugPrint('[POPIN EXPENSE] _accountsById keys: ' + _accountsById.keys.map((k) => '$k (${k.runtimeType})').join(', '));
     //debugPrint('[POPIN EXPENSE] transaction.accountId: \\${transaction.accountId} (type: \\${transaction.accountId.runtimeType})');
     // Fin logs
 
@@ -435,6 +481,9 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         showModalBottomSheet(
           context: context,
           isScrollControlled: true,
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.75,
+          ),
           shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
@@ -445,31 +494,63 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                 padding: const EdgeInsets.all(24),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // Ajout d'un fallback visuel "Banque inconnue" si bankName est null
-                    Text(
-                      bankName != null && bankName.isNotEmpty
-                          ? bankName
-                          : 'Banque inconnue',
-                      style: modalContext.titleLarge,
+                    // Nom de la banque centré
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          bankName ?? 'Banque inconnue',
+                          style: modalContext.titleMedium.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        4.h,
+                        Text(
+                          _formatTransactionDate(transaction.date),
+                          style: modalContext.bodyMedium.copyWith(
+                            color: AppColors.grey600,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      amountString,
-                      style: modalContext.titleLarge.copyWith(fontWeight: FontWeight.bold),
+
+                    // Montant de la transaction
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16.0),
+                      child: Text(
+                        amountString,
+                        style: modalContext.titleLarge?.copyWith(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
-                    const SizedBox(height: 8),
+
+                    // Description de la transaction
                     Text(
                       _capitalize(transaction.wording),
-                      style: modalContext.bodyLarge,
+                      style: modalContext.bodyLarge?.copyWith(
+                        color: AppColors.grey700,
+                        fontSize: 16,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 16),
+
+                    const SizedBox(height: 24),
+
+                    // Ligne des badges
                     Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Badge Catégorie (mock)
+                        // Badge Catégorie
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: Colors.blue.withOpacity(0.1),
                             borderRadius: modalContext.badgeBorderRadius,
@@ -501,7 +582,8 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                         const SizedBox(width: 8),
                         // Badge Score Carbone
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: carbonColor.withOpacity(0.15),
                             borderRadius: modalContext.badgeBorderRadius,
@@ -530,8 +612,108 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 24),
+
+                    // Encart pour les notes
+                    GestureDetector(
+                      onTap: () {
+                        // TODO: Implémenter l'ouverture de l'éditeur de notes
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.grey100,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit_note,
+                                color: AppColors.grey600, size: 20),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Ajouter une note ou des détails...',
+                                style: modalContext.bodyMedium?.copyWith(
+                                  color: AppColors.grey600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
                     const SizedBox(height: 16),
-                    // Actions à venir ici
+
+                    // Champ Catégorie cliquable
+                    GestureDetector(
+                      onTap: () {
+                        // TODO: Implémenter le sélecteur de catégorie
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 12, horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: AppColors.grey100,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Text(
+                              'Catégorie',
+                              style: modalContext.bodyLarge?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const Spacer(),
+                            // Afficher la catégorie actuelle ou "Non catégorisé"
+                            Text(
+                              transaction.categoryLabel?.isNotEmpty == true
+                                  ? _capitalize(transaction.categoryLabel!)
+                                  : (transaction.category?.isNotEmpty == true
+                                      ? _capitalize(transaction.category!)
+                                      : 'Non catégorisé'),
+                              style: modalContext.bodyMedium?.copyWith(
+                                color: AppColors.grey600,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(
+                              Icons.arrow_forward_ios,
+                              size: 16,
+                              color: AppColors.grey500,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const Spacer(),
+
+                    // Bouton "Améliorer ma dépense"
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          // TODO: Implémenter la logique d'amélioration
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          'Améliorer ma dépense',
+                          style: modalContext.bodyLarge?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -566,17 +748,26 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                         Expanded(
                           child: Text(
                             _capitalize(transaction.wording),
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ) ?? const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                            style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ) ??
+                                const TextStyle(
+                                    fontWeight: FontWeight.w600, fontSize: 14),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         Text(
                           amountString,
-                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ) ?? const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                          style:
+                              Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                      ) ??
+                                  const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14),
                         ),
                       ],
                     ),
@@ -584,9 +775,10 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                     // Les badges Catégorie et Score sont maintenant dans une Row
                     Row(
                       children: [
-                       // if (bankBadge != null) bankBadge,
+                        // if (bankBadge != null) bankBadge,
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: Colors.blue.withOpacity(0.1),
                             borderRadius: context.badgeBorderRadius,
@@ -617,7 +809,8 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: carbonColor.withOpacity(0.15),
                             borderRadius: context.badgeBorderRadius,

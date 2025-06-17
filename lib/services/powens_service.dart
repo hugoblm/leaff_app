@@ -178,7 +178,7 @@ class PowensService with ChangeNotifier {
         final String? nextUrl = data['next']; // L'API fournit l'URL complète pour la page suivante
 
         for (final txJson in transactionsJson) {
-          debugPrint('[POWENS RAW TRANSACTION] ' + txJson.toString());
+          //debugPrint('[POWENS RAW TRANSACTION] ' + txJson.toString());
         }
         final transactions = transactionsJson.map((json) => TransactionDetails.fromJson(json)).toList();
         return TransactionPage(transactions: transactions, nextUrl: nextUrl);
