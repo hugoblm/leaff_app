@@ -83,8 +83,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final powensService = Provider.of<PowensService>(context, listen: false); // Obtenir PowensService
-    
+    final powensService = Provider.of<PowensService>(context,
+        listen: false); // Obtenir PowensService
+
     return Scaffold(
       backgroundColor: context.backgroundColor,
       appBar: AppBar(
@@ -113,81 +114,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
               icon: Icons.account_balance,
               title: 'Comptes bancaires',
               subtitle: 'Connectez une nouvelle banque ou gérez vos connexions',
-              onTap: () async {
-                debugPrint('SettingsScreen: "Comptes bancaires" card tapped.');
-
-                if (powensService.connectionIds.isEmpty) {
-                  debugPrint('SettingsScreen: No connections found. Initiating new connection flow.');
-                  
-                  if (powensService.userId == null) {
-                    debugPrint('SettingsScreen: Powens userId is null. Calling initializePowensUserAndGetId().');
-                    final String? powensUserId = await powensService.initializePowensUserAndGetId();
-                    
-                    if (powensUserId == null) {
-                      debugPrint('SettingsScreen: Failed to initialize Powens user.');
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Erreur d\'initialisation du service bancaire.')),
-                        );
-                      }
-                      return;
-                    }
-                    
-                    final authService = Provider.of<AuthService>(context, listen: false);
-                    await authService.savePowensUserId(powensUserId);
-                    debugPrint('SettingsScreen: Powens user initialized and saved to Firebase. UserId: $powensUserId');
-                  } else {
-                      debugPrint('SettingsScreen: Powens userId already exists: ${powensService.userId}. Proceeding to login.');
-                  }
-
-                  debugPrint('SettingsScreen: Calling powensService.login() to get webview URL.');
-                  bool? loginInitiated = await powensService.login();
-                  if (loginInitiated == true) {
-                    debugPrint('SettingsScreen: Login successful, webview should be opening.');
-                  } else {
-                    debugPrint('SettingsScreen: powensService.login() failed.');
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Impossible d\'initier la connexion bancaire. Veuillez réessayer.')),
-                      );
-                    }
-                  }
-                } else {
-                  debugPrint('SettingsScreen: Connections found. Navigating to BankConnectionsScreen.');
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const BankConnectionsScreenWrapper()),
-                  );
-                }
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) =>
+                          const BankConnectionsScreenWrapper()),
+                );
               },
               trailing: Consumer<PowensService>(
-                builder: (context, powensServiceInstance, child) {
-                  bool isConnected = powensServiceInstance.connectionIds.isNotEmpty;
-                  String badgeText;
-                  Color badgeTextColor;
-                  Color badgeBackgroundColor;
+                  builder: (context, powensServiceInstance, child) {
+                bool isConnected =
+                    powensServiceInstance.connectionIds.isNotEmpty;
+                String badgeText;
+                Color badgeTextColor;
+                Color badgeBackgroundColor;
 
-                  if (isConnected) {
-                    badgeText = 'Connecté';
-                    (badgeTextColor, badgeBackgroundColor) = context.successBadge;
-                  } else {
-                    badgeText = 'Non connecté';
-                    (badgeTextColor, badgeBackgroundColor) = context.errorBadge;
-                  }
-
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: badgeBackgroundColor,
-                      borderRadius: context.badgeBorderRadius,
-                    ),
-                    child: Text(
-                      badgeText,
-                      style: context.badge.copyWith(color: badgeTextColor),
-                    ),
-                  );
+                if (isConnected) {
+                  badgeText = 'Connecté';
+                  (badgeTextColor, badgeBackgroundColor) = context.successBadge;
+                } else {
+                  badgeText = 'Non connecté';
+                  (badgeTextColor, badgeBackgroundColor) = context.errorBadge;
                 }
-              ),
+
+                return Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: badgeBackgroundColor,
+                    borderRadius: context.badgeBorderRadius,
+                  ),
+                  child: Text(
+                    badgeText,
+                    style: context.badge.copyWith(color: badgeTextColor),
+                  ),
+                );
+              }),
             ),
             _buildSettingsCard(
               icon: Icons.logout,
@@ -231,13 +194,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Color badgeTextColor;
                   Color badgeBackgroundColor;
                   if (_locationEnabled) {
-                    (badgeTextColor, badgeBackgroundColor) = context.successBadge;
+                    (badgeTextColor, badgeBackgroundColor) =
+                        context.successBadge;
                   } else {
                     badgeTextColor = context.grey700;
                     badgeBackgroundColor = context.grey200;
                   }
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: badgeBackgroundColor,
                       borderRadius: context.badgeBorderRadius,
@@ -273,7 +238,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 32),
             // BOUTON DEBUG : Purge tous les caches applicatifs
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 0.0, vertical: 8.0),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 0.0, vertical: 8.0),
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.delete_forever),
                 label: const Text('Purger tous les caches (debug)'),
@@ -286,7 +252,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   await _clearAllAppCaches();
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Caches applicatifs purgés.')),
+                      const SnackBar(
+                          content: Text('Caches applicatifs purgés.')),
                     );
                   }
                 },
@@ -365,11 +332,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ],
         ),
-        trailing: trailing ?? Icon(
-          Icons.arrow_forward_ios,
-          size: 16,
-          color: context.onSurfaceVariantColor,
-        ),
+        trailing: trailing ??
+            Icon(
+              Icons.arrow_forward_ios,
+              size: 16,
+              color: context.onSurfaceVariantColor,
+            ),
       ),
     );
   }

@@ -42,27 +42,39 @@ class _BankConnectionsScreenState extends State<BankConnectionsScreen> {
   bool _hasLoadingError = false;
   int _loadAttempts = 0;
   final int _maxLoadAttempts = 3;
+  final Map<String, String> _assetTypeById = {};
+  final List<_CustomAsset> _customAssets = [];
+  final List<String> _assetTypeOrder = [];
+
+  PowensService? _powensService;
 
   @override
   void initState() {
     super.initState();
-    Provider.of<PowensService>(context, listen: false)
-        .addListener(_loadConnectionDetails);
-    final powensService = Provider.of<PowensService>(context, listen: false);
-    if (powensService.userId != null) {
+    // On ne peut pas utiliser Provider.of dans initState, donc on le fait dans didChangeDependencies
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _powensService ??= Provider.of<PowensService>(context, listen: false);
+    _powensService?.addListener(_loadConnectionDetails);
+    if (_powensService?.userId != null) {
       _loadConnectionDetails();
-      powensService.getAccounts().then((_) {
-        debugPrint('[BankConnectionsScreen] Comptes bancaires préchargés au démarrage de la page.');
+      _powensService?.getAccounts().then((_) {
+        debugPrint(
+            '[BankConnectionsScreen] Comptes bancaires préchargés au démarrage de la page.');
       });
-      powensService.refreshAllConnectionDetails();
+      _powensService?.refreshAllConnectionDetails();
       _loadConnectorsDetails();
     }
   }
 
   @override
   void dispose() {
-    Provider.of<PowensService>(context, listen: false)
-        .removeListener(_loadConnectionDetails);
+    _powensService?.removeListener(_loadConnectionDetails);
+    _connectionDetailsList.clear();
+    _connectorsByUuid.clear();
     super.dispose();
   }
 
@@ -164,8 +176,10 @@ class _BankConnectionsScreenState extends State<BankConnectionsScreen> {
   Future<void> _loadConnectorsDetails() async {
     final powensService = Provider.of<PowensService>(context, listen: false);
     final map = await powensService.loadAllConnectorDetails();
-    debugPrint('[BANK_CONNECTIONS] Chargement mapping connectors, nb: \\${map.length}');
-    map.forEach((k, v) => debugPrint('[BANK_CONNECTIONS] connectorUuid: \\${k}, name: \\${v.name}, logo: \\${v.logoUrl}'));
+    debugPrint(
+        '[BANK_CONNECTIONS] Chargement mapping connectors, nb: \\${map.length}');
+    map.forEach((k, v) => debugPrint(
+        '[BANK_CONNECTIONS] connectorUuid: \\${k}, name: \\${v.name}, logo: \\${v.logoUrl}'));
     if (!mounted) return;
     setState(() {
       _connectorsByUuid.clear();
@@ -185,67 +199,49 @@ class _BankConnectionsScreenState extends State<BankConnectionsScreen> {
     debugPrint('Tous les caches applicatifs ont été purgés.');
   }
 
-  Widget _buildReusableCard({
-    required Widget leading,
+  Widget _buildSettingsCard({
+    required IconData icon,
     required String title,
-    String? subtitle,
-    String? badgeText,
-    Color? badgeBackgroundColor,
-    Color? badgeTextColor,
+    required String subtitle,
+    required VoidCallback onTap,
     Widget? trailing,
-    VoidCallback? onTap,
   }) {
-    return Card(
-      elevation: 0,
-      color: context.surfaceColor,
-      shape: RoundedRectangleBorder(
-        borderRadius: context.mediumBorderRadius,
-      ),
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: context.surfaceColor,
+        borderRadius: context.mediumBorderRadius,
+        boxShadow: [context.cardShadow],
+      ),
       child: ListTile(
         onTap: onTap,
-        contentPadding:
-            const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-        leading: leading,
+        contentPadding: const EdgeInsets.all(16),
+        leading: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: context.onSurfaceColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            icon,
+            color: context.onSurfaceColor,
+          ),
+        ),
         title: Text(
           title,
           style: context.bodyLarge.copyWith(
             fontWeight: FontWeight.w600,
           ),
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (subtitle != null) ...[
-              const SizedBox(height: 4),
-              Text(
+        subtitle: subtitle.isNotEmpty
+            ? Text(
                 subtitle,
                 style: context.bodyMedium.copyWith(
                   color: context.onSurfaceVariantColor,
                 ),
-              ),
-            ],
-            if (badgeText != null) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: badgeBackgroundColor ?? Colors.grey.shade200,
-                  borderRadius: context.badgeBorderRadius,
-                ),
-                child: Text(
-                  badgeText,
-                  style: TextStyle(
-                    color: badgeTextColor ?? Colors.grey.shade700,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
+              )
+            : null,
         trailing: trailing ??
             Icon(
               Icons.arrow_forward_ios,
@@ -256,57 +252,35 @@ class _BankConnectionsScreenState extends State<BankConnectionsScreen> {
     );
   }
 
-  Widget _buildBankConnectionCard({
-    required String connectorUuid,
-    required String lastUpdated,
-    required bool isActive,
-    String? logoUrl,
-    VoidCallback? onTap,
-  }) {
-    final connector = _connectorsByUuid[connectorUuid];
-    final bankName = connector?.name ?? 'Banque Inconnue';
-    debugPrint('[BANK_CONNECTIONS] build card connectorUuid: \\${connectorUuid}, bankName: \\${bankName}, connector: \\${connector?.toJson()}');
-    final leadingWidget = Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: context.grey100,
-        borderRadius: context.badgeBorderRadius,
-      ),
-      child: ClipRRect(
-        borderRadius: context.badgeBorderRadius,
-        child: logoUrl != null && logoUrl.isNotEmpty
-            ? Image.network(
-                logoUrl,
-                width: 40,
-                height: 40,
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) => Icon(
-                    Icons.account_balance,
-                    color: Theme.of(context).colorScheme.onSurface),
-              )
-            : Icon(
-                Icons.account_balance,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-      ),
-    );
-
-    return _buildReusableCard(
-      leading: leadingWidget,
-      title: bankName,
-      subtitle: 'Mis à jour le : $lastUpdated',
-      badgeText: isActive ? 'Actif' : 'Action requise',
-      badgeBackgroundColor: isActive ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
-      badgeTextColor: isActive ? Colors.green : Colors.orange,
-      onTap: onTap,
-    );
+  // Ajoute une fonction utilitaire pour le formatage relatif de la date
+  String _formatRelativeDate(DateTime date) {
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inMinutes < 1) return 'il y a moins d\'une minute';
+    if (diff.inMinutes < 60) return 'il y a ${diff.inMinutes} min';
+    if (diff.inHours < 24) return 'il y a ${diff.inHours}h';
+    if (diff.inDays < 7) return 'il y a ${diff.inDays} jours';
+    return 'il y a plus d\'une semaine';
   }
 
   @override
   Widget build(BuildContext context) {
     final powensService = context.watch<PowensService>();
     Widget bodyContent;
+
+    // Regroupement par type d'asset (ordre d'ajout)
+    final Map<String, List<BankConnectionDetails>> groupedConnections = {};
+    for (final detail in _connectionDetailsList) {
+      final type = _assetTypeById[detail.id] ?? 'Checking Account';
+      groupedConnections.putIfAbsent(type, () => []).add(detail);
+      if (!_assetTypeOrder.contains(type)) _assetTypeOrder.add(type);
+    }
+    // Ajout des custom assets
+    for (final asset in _customAssets) {
+      groupedConnections.putIfAbsent(asset.type, () => []);
+      if (!_assetTypeOrder.contains(asset.type))
+        _assetTypeOrder.add(asset.type);
+    }
 
     if (_isInitializingPowensUser) {
       bodyContent = const Center(child: CircularProgressIndicator());
@@ -378,7 +352,7 @@ class _BankConnectionsScreenState extends State<BankConnectionsScreen> {
           ],
         ),
       );
-    } else if (_connectionDetailsList.isEmpty) {
+    } else if (_connectionDetailsList.isEmpty && _customAssets.isEmpty) {
       bodyContent = Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -393,220 +367,355 @@ class _BankConnectionsScreenState extends State<BankConnectionsScreen> {
         ),
       );
     } else {
-      bodyContent = ListView.builder(
+      bodyContent = ListView(
         padding: const EdgeInsets.all(16.0),
-        itemCount: _connectionDetailsList.length,
-        itemBuilder: (context, index) {
-          // Ce 'context' (de itemBuilder) A ACCÈS au Provider
-          final detail = _connectionDetailsList[index];
-          final bankName =
-              detail.connectorName ?? detail.bankName ?? 'Banque Inconnue';
-          final lastUpdated = detail.lastUpdate != null
-              ? DateFormat('dd/MM/yyyy HH:mm', 'fr_FR')
-                  .format(detail.lastUpdate!)
-              : 'N/A';
-          final isActive =
-              (detail.status == null && (detail.isActiveFromApi ?? true));
-          final String? logoUrl = detail.connectorUuid != null
-              ? 'https://your-future-cdn.com/logos/${detail.connectorUuid}.png'
-              : null;
-
-          return _buildBankConnectionCard(
-            connectorUuid: detail.connectorUuid ?? '',
-            lastUpdated: lastUpdated,
-            isActive: isActive,
-            logoUrl: logoUrl,
-            onTap: () {
-              // *** MODIFICATION ICI ***
-              // Récupérer List<AccountDetails> EN UTILISANT LE CONTEXTE DE ITEMBUILDER (qui a accès)
-              final List<AccountDetails> resolvedAccounts =
-                  Provider.of<List<AccountDetails>>(context, listen: false);
-              debugPrint(
-                  '[POPIN SOLDE PRE-FETCH] Comptes récupérés avant modal: ${resolvedAccounts.length}');
-
-              showModalBottomSheet(
-                context:
-                    context, // Utilisation du contexte de itemBuilder pour lancer le modal
-                isScrollControlled: true,
-                enableDrag: true,
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                ),
-                builder: (modalContext) {
-                  // modalContext est pour le contenu du BottomSheet
-                  return Padding(
-                    padding: MediaQuery.of(modalContext).viewInsets,
-                    child: Container(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(detail.bankName ?? 'Banque',
-                              style: modalContext.titleLarge),
-                          // BADGE STATUS
-                          if (detail.status != null || (detail.status == null && (detail.isActiveFromApi ?? true)))
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8.0, bottom: 4.0),
+        children: [
+          for (final type in _assetTypeOrder)
+            if ((groupedConnections[type]?.isNotEmpty ?? false) ||
+                _customAssets.any((a) => a.type == type)) ...[
+              Padding(
+                padding: const EdgeInsets.only(top: 16, bottom: 8),
+                child: Text(type, style: context.titleMedium),
+              ),
+              // Cartes de banques
+              if (groupedConnections[type] != null)
+                ...groupedConnections[type]!.map((detail) {
+                  final connector =
+                      _connectorsByUuid[detail.connectorUuid ?? ''];
+                  final bankName =
+                      connector?.name ?? detail.bankName ?? 'Banque Inconnue';
+                  final lastUpdated = detail.lastUpdate != null
+                      ? DateFormat('dd/MM/yyyy HH:mm', 'fr_FR')
+                          .format(detail.lastUpdate!)
+                      : 'N/A';
+                  final isActive = (detail.status == null &&
+                      (detail.isActiveFromApi ?? true));
+                  final String? logoUrl = detail.connectorUuid != null
+                      ? 'https://your-future-cdn.com/logos/${detail.connectorUuid}.png'
+                      : null;
+                  return _buildSettingsCard(
+                    icon: Icons.account_balance,
+                    title: bankName,
+                    subtitle: 'Mis à jour le : $lastUpdated',
+                    onTap: () async {
+                      double? bankBalance;
+                      // Récupère le solde de la banque depuis le cache (si possible)
+                      try {
+                        final accounts = await Provider.of<PowensService>(
+                                context,
+                                listen: false)
+                            .getAccounts();
+                        final bankAccounts = accounts
+                            .where((a) => a.connectionId == detail.id)
+                            .toList();
+                        bankBalance = bankAccounts.fold(0.0,
+                            (sum, acc) => (sum ?? 0.0) + (acc.balance ?? 0.0));
+                      } catch (_) {}
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.vertical(top: Radius.circular(24)),
+                        ),
+                        builder: (modalContext) {
+                          final double popinHeight =
+                              MediaQuery.of(modalContext).size.height * 0.45;
+                          return SafeArea(
+                            child: Padding(
+                              padding: MediaQuery.of(modalContext).viewInsets,
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: (detail.status == null || detail.status == 'active')
-                                      ? Colors.green.withOpacity(0.1)
-                                      : Colors.orange.withOpacity(0.1),
-                                  borderRadius: modalContext.badgeBorderRadius,
-                                ),
-                                child: Text(
-                                  detail.status == null || detail.status == 'active'
-                                      ? 'Actif'
-                                      : detail.status!,
-                                  style: TextStyle(
-                                    color: (detail.status == null || detail.status == 'active')
-                                        ? Colors.green
-                                        : Colors.orange,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          // *** MODIFICATION ICI ***
-                          // Utiliser 'resolvedAccounts' directement au lieu de Provider.of(modalContext, ...)
-                          (() {
-                            // On récupère la liste des comptes injectée par le FutureProvider
-                            final List<AccountDetails> resolvedAccounts = Provider.of<List<AccountDetails>>(context, listen: false);
-                            
-                            if (resolvedAccounts.isEmpty) {
-                              // Affiche un loader si la liste est vide (chargement en cours)
-                              return const Padding(
-                                padding: EdgeInsets.only(top: 8.0, bottom: 4.0),
-                                child: Center(child: CircularProgressIndicator()),
-                              );
-                            }
-                            final bankAccounts = resolvedAccounts.where((a) => a.connectionId == detail.id).toList();
-                            final totalBalance = bankAccounts.fold(0.0, (sum, acc) => sum + acc.balance);
-                            final formattedBalance = NumberFormat.currency(locale: 'fr_FR', symbol: '€').format(totalBalance);
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 8.0, bottom: 4.0),
-                              child: Text(
-                                ' $formattedBalance',
-                                style: modalContext.titleLarge.copyWith(fontWeight: FontWeight.bold),
-                                textAlign: TextAlign.center,
-                              ),
-                            );
-                          })(),
-                          if (detail.lastUpdate != null)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 4.0),
-                              child: Text(
-                                'Dernière mise à jour le : ${DateFormat('dd/MM/yyyy à HH:mm', 'fr_FR').format(detail.lastUpdate!)}',
-                                style: modalContext.bodyMedium,
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          const SizedBox(height: 8),
-                          const Divider(height: 1),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 16.0),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                Expanded(
-                                  child: InkWell(
-                                    // Optionnel: InkWell pour l'effet de feedback
-                                    onTap: () {
-                                      // TODO: Implémenter la modification
-                                      Navigator.of(modalContext)
-                                          .pop(); // Fermer le modal après action
-                                    },
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
+                                padding: const EdgeInsets.all(24),
+                                height: popinHeight,
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    Center(
+                                      child: Container(
+                                        width: 40,
+                                        height: 4,
+                                        margin:
+                                            const EdgeInsets.only(bottom: 16),
+                                        decoration: BoxDecoration(
+                                          color: modalContext.grey300,
+                                          borderRadius:
+                                              BorderRadius.circular(2),
+                                        ),
+                                      ),
+                                    ),
+                                    Center(
+                                      child: Text(
+                                        bankName,
+                                        style: modalContext.titleLarge,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Center(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: isActive
+                                              ? modalContext.successBadge.$2
+                                              : modalContext.errorBadge.$2,
+                                          borderRadius:
+                                              modalContext.badgeBorderRadius,
+                                        ),
+                                        child: Text(
+                                          isActive ? 'Actif' : 'Action requise',
+                                          style: modalContext.badge.copyWith(
+                                              color: isActive
+                                                  ? modalContext.successBadge.$1
+                                                  : modalContext.errorBadge.$1),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      bankBalance != null
+                                          ? '${bankBalance.toStringAsFixed(2)} €'
+                                          : 'Solde indisponible',
+                                      style: modalContext.titleLarge.copyWith(
+                                          fontWeight: FontWeight.bold),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                    if (detail.lastUpdate != null)
+                                      Padding(
+                                        padding:
+                                            const EdgeInsets.only(top: 8.0),
+                                        child: Text(
+                                          _formatRelativeDate(
+                                              detail.lastUpdate!),
+                                          style: modalContext.bodyMedium,
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+                                    const Spacer(),
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceEvenly,
                                       children: [
-                                        Icon(Icons.edit,
-                                            color: modalContext.primaryColor),
-                                        const SizedBox(height: 4),
-                                        Text('Modifier',
-                                            style: modalContext.bodyMedium
-                                                .copyWith(
+                                        Expanded(
+                                          child: InkWell(
+                                            onTap: () {
+                                              // TODO: Implémenter la modification
+                                              Navigator.of(modalContext).pop();
+                                            },
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.edit,
                                                     color: modalContext
-                                                        .primaryColor)),
+                                                        .primaryColor),
+                                                const SizedBox(height: 4),
+                                                Text('Modifier',
+                                                    style: modalContext
+                                                        .bodyMedium
+                                                        .copyWith(
+                                                            color: modalContext
+                                                                .primaryColor)),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: TextButton(
+                                            onPressed: () async {
+                                              // Suppression locale
+                                              _connectionDetailsList
+                                                  .removeWhere(
+                                                      (b) => b.id == detail.id);
+                                              _assetTypeById.remove(detail.id);
+                                              if (mounted) setState(() {});
+                                              Navigator.of(modalContext).pop();
+                                            },
+                                            style: TextButton.styleFrom(
+                                              foregroundColor: Colors.red,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      vertical: 8),
+                                            ),
+                                            child: const Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(Icons.delete_outline,
+                                                    color: Colors.red),
+                                                SizedBox(height: 4),
+                                                Text('Supprimer',
+                                                    style: TextStyle(
+                                                        color: Colors.red)),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
                                       ],
                                     ),
-                                  ),
+                                  ],
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: TextButton(
-                                    onPressed: () async {
-                                      final powensService = Provider.of<PowensService>(context, listen: false);
-                                      final connectionIdToDelete = detail.id;
-                                      bool success = false;
-
-                                      // Effectuer la suppression
-                                      if (mounted) {
-                                        success = await powensService.deleteConnection(connectionIdToDelete);
-                                      }
-
-                                      // Mettre à jour l'UI et fermer le modal SEULEMENT si le widget est toujours monté
-                                      if (mounted) {
-                                        if (success) {
-                                          // Nettoyer les scores carbone liés à cette connexion
-                                          final accounts = await powensService.getAccounts();
-                                          final accountIds = accounts.where((a) => a.connectionId == connectionIdToDelete).map((a) => a.id).toList();
-                                          // Si tu as un cache local de transactions, récupère les transactions de ces comptes
-                                          // Ici, on suppose que tu peux récupérer les transactions depuis l'API ou localement
-                                          // TODO: Remplacer par la récupération locale si tu ajoutes un cache local
-                                          List<String> transactionIds = [];
-                                          // ... code pour remplir transactionIds à partir des transactions liées à accountIds ...
-                                          final carbonScoreCache = await CarbonScoreCacheService.getInstance();
-                                          await carbonScoreCache.clearScoresForConnection(transactionIds);
-                                        }
-                                        final SnackBar snackBar = success
-                                            ? const SnackBar(content: Text('Connexion bancaire supprimée.'))
-                                            : const SnackBar(content: Text('Erreur lors de la suppression de la connexion.'));
-
-                                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                                          if (mounted) {
-                                            ScaffoldMessenger.of(context).showSnackBar(snackBar);
-                                          }
-                                        });
-
-                                        if (success) {
-                                          await _loadConnectionDetails();
-                                          await _loadConnectorsDetails();
-                                        }
-                                        Navigator.of(modalContext).pop();
-                                      }
-                                    },
-                                    style: TextButton.styleFrom(
-                                      foregroundColor: Colors.red,
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 8),
-                                    ),
-                                    child: const Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(Icons.delete_outline,
-                                            color: Colors.red),
-                                        SizedBox(height: 4),
-                                        Text('Supprimer',
-                                            style: TextStyle(
-                                                color: Colors.red)),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
-                          ),
-                        ],
+                          );
+                        },
+                      );
+                    },
+                    trailing: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isActive
+                            ? context.successBadge.$2
+                            : context.errorBadge.$2,
+                        borderRadius: context.badgeBorderRadius,
+                      ),
+                      child: Text(
+                        isActive ? 'Actif' : 'Action requise',
+                        style: context.badge.copyWith(
+                            color: isActive
+                                ? context.successBadge.$1
+                                : context.errorBadge.$1),
                       ),
                     ),
                   );
-                },
-              );
-            },
-          );
-        },
+                }),
+              // Cartes custom assets
+              ..._customAssets.where((a) => a.type == type).map((asset) {
+                return _buildSettingsCard(
+                  icon: Icons.widgets,
+                  title: asset.name,
+                  subtitle: '',
+                  onTap: () {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.vertical(top: Radius.circular(24)),
+                      ),
+                      builder: (modalContext) {
+                        final double popinHeight =
+                            MediaQuery.of(modalContext).size.height * 0.45;
+                        return SafeArea(
+                          child: Padding(
+                            padding: MediaQuery.of(modalContext).viewInsets,
+                            child: Container(
+                              padding: const EdgeInsets.all(24),
+                              height: popinHeight,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Center(
+                                    child: Container(
+                                      width: 40,
+                                      height: 4,
+                                      margin: const EdgeInsets.only(bottom: 16),
+                                      decoration: BoxDecoration(
+                                        color: modalContext.grey300,
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    ),
+                                  ),
+                                  Center(
+                                    child: Text(
+                                      asset.name,
+                                      style: modalContext.titleLarge,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Center(
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: modalContext.infoBadge.$2,
+                                        borderRadius:
+                                            modalContext.badgeBorderRadius,
+                                      ),
+                                      child: Text(
+                                        asset.type,
+                                        style: modalContext.badge.copyWith(
+                                            color: modalContext.infoBadge.$1),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Non renseigné',
+                                    style: modalContext.titleLarge
+                                        .copyWith(fontWeight: FontWeight.bold),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const Spacer(),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceEvenly,
+                                    children: [
+                                      Expanded(
+                                        child: InkWell(
+                                          onTap: () {
+                                            // TODO: Implémenter la modification
+                                            Navigator.of(modalContext).pop();
+                                          },
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.edit,
+                                                  color: modalContext
+                                                      .primaryColor),
+                                              const SizedBox(height: 4),
+                                              Text('Modifier',
+                                                  style: modalContext.bodyMedium
+                                                      .copyWith(
+                                                          color: modalContext
+                                                              .primaryColor)),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: TextButton(
+                                          onPressed: () async {
+                                            _customAssets.removeWhere(
+                                                (a) => a.id == asset.id);
+                                            if (mounted) setState(() {});
+                                            Navigator.of(modalContext).pop();
+                                          },
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: Colors.red,
+                                            padding: const EdgeInsets.symmetric(
+                                                vertical: 8),
+                                          ),
+                                          child: const Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.delete_outline,
+                                                  color: Colors.red),
+                                              SizedBox(height: 4),
+                                              Text('Supprimer',
+                                                  style: TextStyle(
+                                                      color: Colors.red)),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                );
+              }),
+            ],
+        ],
       );
     }
 
@@ -627,47 +736,213 @@ class _BankConnectionsScreenState extends State<BankConnectionsScreen> {
       body: Column(
         children: [
           Expanded(child: bodyContent),
-          if (powensService.userId != null)
-            Padding(
-              padding: const EdgeInsets.all(56.0),
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.add_circle_outline),
-                label: const Text('Ajouter une nouvelle banque'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: context.primaryColor,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 50),
-                  textStyle: context.bodyLarge.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: context.badgeBorderRadius,
-                  ),
-                ),
-                onPressed: () async {
-                  bool? loginInitiated = await powensService.login();
-                  if (loginInitiated == true) {
-                    debugPrint('BankConnectionsScreen: Ouverture de l'
-                        'URL de connexion POWENS...');
-                    await powensService.refreshAllConnectionDetails();
-                  } else {
-                    debugPrint('BankConnectionsScreen: Échec de l'
-                        'initiation de la connexion POWENS.');
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('Impossible d'
-                                'initier la connexion bancaire. Assurez-vous d'
-                                'être connecté et réessayez.')),
-                      );
-                    }
-                  }
-                },
-              ),
-            ),
         ],
       ),
+      floatingActionButton: powensService.userId != null
+          ? Padding(
+              padding: const EdgeInsets.only(bottom: 12, right: 8),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Material(
+                  color: Colors.transparent,
+                  elevation: 0,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: context.primaryColor,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: context.primaryColor.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      icon:
+                          const Icon(Icons.add, color: Colors.white, size: 28),
+                      onPressed: () {
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.vertical(top: Radius.circular(24)),
+                          ),
+                          builder: (modalContext) {
+                            final List<_AssetType> assetTypes = [
+                              _AssetType('Stocks & Funds', Icons.show_chart),
+                              _AssetType('Checking Account',
+                                  Icons.account_balance_wallet),
+                              _AssetType('Saving Account', Icons.savings),
+                              _AssetType('Loans', Icons.request_quote),
+                              _AssetType(
+                                  'Investment account', Icons.trending_up),
+                              _AssetType('Life Insurance', Icons.verified_user),
+                              _AssetType('Crypto', Icons.currency_bitcoin),
+                              _AssetType('SCPI', Icons.apartment),
+                            ];
+                            final double popinHeight =
+                                MediaQuery.of(modalContext).size.height * 0.45;
+                            return SafeArea(
+                              child: Padding(
+                                padding: MediaQuery.of(modalContext).viewInsets,
+                                child: Container(
+                                  padding: const EdgeInsets.all(24),
+                                  height: popinHeight,
+                                  child: SingleChildScrollView(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Center(
+                                          child: Container(
+                                            width: 40,
+                                            height: 4,
+                                            margin: const EdgeInsets.only(
+                                                bottom: 16),
+                                            decoration: BoxDecoration(
+                                              color: modalContext.grey300,
+                                              borderRadius:
+                                                  BorderRadius.circular(2),
+                                            ),
+                                          ),
+                                        ),
+                                        Center(
+                                          child: Text(
+                                            'add to my portfolio',
+                                            style: modalContext.titleLarge
+                                                .copyWith(
+                                                    fontWeight:
+                                                        FontWeight.bold),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 24),
+                                        GridView.builder(
+                                          shrinkWrap: true,
+                                          physics:
+                                              const NeverScrollableScrollPhysics(),
+                                          gridDelegate:
+                                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                            crossAxisCount: 2,
+                                            mainAxisSpacing: 16,
+                                            crossAxisSpacing: 16,
+                                            childAspectRatio: 1,
+                                          ),
+                                          itemCount: assetTypes.length,
+                                          itemBuilder: (context, index) {
+                                            final asset = assetTypes[index];
+                                            return GestureDetector(
+                                              onTap: () async {
+                                                Navigator.of(modalContext)
+                                                    .pop();
+                                                if (asset.label ==
+                                                    'Checking Account') {
+                                                  // Lancer la logique Powens
+                                                  final powensService = Provider
+                                                      .of<PowensService>(
+                                                          context,
+                                                          listen: false);
+                                                  bool? loginInitiated =
+                                                      await powensService
+                                                          .login();
+                                                  if (loginInitiated == true) {
+                                                    debugPrint(
+                                                        'BankConnectionsScreen: Ouverture de l\'URL de connexion POWENS...');
+                                                    await powensService
+                                                        .refreshAllConnectionDetails();
+                                                  } else {
+                                                    debugPrint(
+                                                        'BankConnectionsScreen: Échec de l\'initiation de la connexion POWENS.');
+                                                    if (mounted) {
+                                                      ScaffoldMessenger.of(
+                                                              context)
+                                                          .showSnackBar(
+                                                        const SnackBar(
+                                                            content: Text(
+                                                                'Impossible d\'initier la connexion bancaire. Assurez-vous d\'être connecté et réessayez.')),
+                                                      );
+                                                    }
+                                                  }
+                                                } else {
+                                                  if (mounted) {
+                                                    ScaffoldMessenger.of(
+                                                            context)
+                                                        .showSnackBar(
+                                                      SnackBar(
+                                                          content: Text(
+                                                              'Coming soon')),
+                                                    );
+                                                  }
+                                                }
+                                              },
+                                              child: Container(
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      modalContext.surfaceColor,
+                                                  borderRadius: modalContext
+                                                      .mediumBorderRadius,
+                                                  boxShadow: [
+                                                    modalContext.cardShadow
+                                                  ],
+                                                ),
+                                                child: Column(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  children: [
+                                                    Icon(asset.icon,
+                                                        size: 44,
+                                                        color: modalContext
+                                                            .primaryColor),
+                                                    const SizedBox(height: 16),
+                                                    Text(
+                                                      asset.label,
+                                                      style: modalContext
+                                                          .bodyLarge
+                                                          .copyWith(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600),
+                                                      textAlign:
+                                                          TextAlign.center,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                      tooltip: 'Ajouter un asset',
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : null,
     );
   }
+}
+
+// Classe utilitaire pour les assets
+class _AssetType {
+  final String label;
+  final IconData icon;
+  const _AssetType(this.label, this.icon);
+}
+
+// Classe pour les assets non bancaires
+class _CustomAsset {
+  final String id;
+  final String name;
+  final String type;
+  _CustomAsset({required this.id, required this.name, required this.type});
 }
