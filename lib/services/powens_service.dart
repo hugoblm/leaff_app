@@ -553,6 +553,21 @@ class PowensService with ChangeNotifier {
   return parsed;
 }
 
+  /// Supprime toutes les données locales liées à une connexion Powens (connexion, comptes, transactions)
+  Future<void> clearLocalDataForConnection(String connectionId) async {
+    // Supprimer les détails de connexion
+    final String? jsonString = await _secureStorage.read(key: _connectionsDetailsKey);
+    if (jsonString != null) {
+      final Map<String, dynamic> map = jsonDecode(jsonString);
+      map.remove(connectionId);
+      await _secureStorage.write(key: _connectionsDetailsKey, value: jsonEncode(map));
+    }
+    // Supprimer les comptes liés à cette connexion (si stockés localement)
+    // TODO: Ajouter ici la suppression ciblée si tu ajoutes un cache local pour les comptes
+    // Supprimer les transactions liées à cette connexion (si stockées localement)
+    // TODO: Ajouter ici la suppression ciblée si tu ajoutes un cache local pour les transactions
+  }
+
   /// Supprime une connexion bancaire Powens
   Future<bool> deleteConnection(String connectionId) async {
     if (!_isAuthenticated || _accessToken == null || _accessToken!.isEmpty || _userId == null || _userId!.isEmpty) {
@@ -572,6 +587,7 @@ class PowensService with ChangeNotifier {
       if (response.statusCode == 204 || response.statusCode == 200) {
         debugPrint('PowensService: Connexion $connectionId supprimée avec succès.');
         // Met à jour le cache local
+        await clearLocalDataForConnection(connectionId);
         await refreshAllConnectionDetails();
         await refreshAllConnectorDetails();
         return true;
@@ -583,6 +599,13 @@ class PowensService with ChangeNotifier {
       debugPrint('PowensService: Exception lors de la suppression de la connexion $connectionId: $e');
       return false;
     }
+  }
+
+  /// Purge toutes les données locales Powens (détails de connexion, connecteurs, etc.)
+  Future<void> clearAllLocalData() async {
+    await _secureStorage.delete(key: _connectionsDetailsKey);
+    await _secureStorage.delete(key: _connectorsDetailsKey);
+    await _clearAuthData();
   }
 
 }

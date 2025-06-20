@@ -53,6 +53,10 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>This app requires access to the camera to allow users to sign in with their Google account.</string>
+     <key>NSLocationWhenInUseUsageDescription</key>
+     <string>Cette application a besoin de votre position pour vous recommander des lieux.</string>
+     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+     <string>Cette application a besoin de votre position pour vous recommander des lieux.</string>
 	<key>NSContactsUsageDescription</key>
 	<string>This app requires access to contacts to allow users to sign in with their Google account.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

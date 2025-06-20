@@ -43,6 +43,8 @@ dependencies:
   freezed: ^2.4.5
   build_runner: ^2.4.6
   google_fonts: ^6.1.0 # Pour la gestion des polices Google Fonts
+  geolocator: ^14.0.1
+  geocoding: ^4.0.0
 
 dev_dependencies:
   flutter_test:

@@ -7,6 +7,8 @@ import 'package:intl/intl.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 import '../models/connector_details_model.dart';
+import '../services/carbon_score_cache_service.dart';
+import '../services/rss_cache_service.dart';
 
 // Pour injecter le Provider balance, utilisez :
 // MaterialPageRoute(builder: (_) => const BankConnectionsScreenWrapper()),
@@ -169,6 +171,18 @@ class _BankConnectionsScreenState extends State<BankConnectionsScreen> {
       _connectorsByUuid.clear();
       _connectorsByUuid.addAll(map);
     });
+  }
+
+  Future<void> _clearAllAppCaches() async {
+    // Purge Powens (détails, connecteurs, auth)
+    final powensService = Provider.of<PowensService>(context, listen: false);
+    await powensService.clearAllLocalData();
+    // Purge RSS
+    await RssCacheService.clearCache();
+    // Purge scores carbone
+    final carbonScoreCache = await CarbonScoreCacheService.getInstance();
+    await carbonScoreCache.clearAllScores();
+    debugPrint('Tous les caches applicatifs ont été purgés.');
   }
 
   Widget _buildReusableCard({
@@ -534,23 +548,32 @@ class _BankConnectionsScreenState extends State<BankConnectionsScreen> {
 
                                       // Mettre à jour l'UI et fermer le modal SEULEMENT si le widget est toujours monté
                                       if (mounted) {
+                                        if (success) {
+                                          // Nettoyer les scores carbone liés à cette connexion
+                                          final accounts = await powensService.getAccounts();
+                                          final accountIds = accounts.where((a) => a.connectionId == connectionIdToDelete).map((a) => a.id).toList();
+                                          // Si tu as un cache local de transactions, récupère les transactions de ces comptes
+                                          // Ici, on suppose que tu peux récupérer les transactions depuis l'API ou localement
+                                          // TODO: Remplacer par la récupération locale si tu ajoutes un cache local
+                                          List<String> transactionIds = [];
+                                          // ... code pour remplir transactionIds à partir des transactions liées à accountIds ...
+                                          final carbonScoreCache = await CarbonScoreCacheService.getInstance();
+                                          await carbonScoreCache.clearScoresForConnection(transactionIds);
+                                        }
                                         final SnackBar snackBar = success
                                             ? const SnackBar(content: Text('Connexion bancaire supprimée.'))
                                             : const SnackBar(content: Text('Erreur lors de la suppression de la connexion.'));
 
-                                        // Assurer que le snackbar est affiché sur un contexte valide, après la fin de la trame actuelle
                                         WidgetsBinding.instance.addPostFrameCallback((_) {
-                                          if (mounted) { // Re-vérifier mounted avant d'essayer d'afficher
+                                          if (mounted) {
                                             ScaffoldMessenger.of(context).showSnackBar(snackBar);
                                           }
                                         });
-                                        
+
                                         if (success) {
-                                          // Recharger les données de l'écran principal
                                           await _loadConnectionDetails();
                                           await _loadConnectorsDetails();
                                         }
-                                        // Fermer le modal APRÈS toutes les mises à jour et la planification du snackbar
                                         Navigator.of(modalContext).pop();
                                       }
                                     },

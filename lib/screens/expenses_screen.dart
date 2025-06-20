@@ -260,16 +260,16 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   }
 
   Future<void> _loadConnectorsDetails() async {
-    // Log d’investigation pour la population du mapping des connecteurs
-    //debugPrint('[CONNECTORS] Début du chargement des connecteurs Powens...');
+    // Log d'investigation pour la population du mapping des connecteurs
+    debugPrint('[CONNECTORS] Début du chargement des connecteurs Powens...');
     final powensService = context.read<PowensService>();
     final map = await powensService.loadAllConnectorDetails();
     setState(() {
       _connectorsByUuid.clear();
       _connectorsByUuid.addAll(map);
-      // debugPrint('[CONNECTORS] Mapping _connectorsByUuid après chargement :');
+       debugPrint('[CONNECTORS] Mapping _connectorsByUuid après chargement :');
       _connectorsByUuid.forEach((k, v) {
-        // debugPrint('  uuid: ' + k.toString() + ' → ' + (v == null ? 'null' : v.name.toString()));
+       debugPrint('  uuid: ' + k.toString() + ' → ' + (v == null ? 'null' : v.name.toString()));
       });
     });
   }
@@ -432,49 +432,20 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
 
   Widget _buildExpenseCard(
       BuildContext context, TransactionDetails transaction) {
-    // Bank badge logic
-    String? bankName;
-    String? debugAccountId = transaction.accountId;
-    AccountDetails? debugAccount;
-    String? debugConnectionId;
-    BankConnectionDetails? debugConnection;
-    String? debugConnectorUuid;
-    ConnectorDetails? debugConnector;
-    if (_accountsById.isNotEmpty &&
-        _connectionsById.isNotEmpty &&
-        _bankCount > 1) {
-      debugAccount = _accountsById[transaction.accountId];
-      if (debugAccount != null) {
-        debugConnectionId = debugAccount.connectionId;
-        debugConnection = _connectionsById[debugConnectionId];
-        debugConnectorUuid = debugConnection?.connectorUuid;
-        debugConnector = debugConnectorUuid != null
-            ? _connectorsByUuid[debugConnectorUuid]
-            : null;
-        if (debugConnector != null && (debugConnector.name).isNotEmpty) {
-          bankName = debugConnector.name;
-        }
-      }
-    }
-    // Ajout de logs détaillés
-    /* debugPrint('[POPIN EXPENSE] accountId: \\${debugAccountId}');
-    debugPrint('[POPIN EXPENSE] account: \\${debugAccount?.toString()}');
-    debugPrint('[POPIN EXPENSE] connectionId: \\${debugConnectionId}');
-    debugPrint('[POPIN EXPENSE] connection: \\${debugConnection?.toString()}');
-    debugPrint('[POPIN EXPENSE] connectorUuid: \\${debugConnectorUuid}');
-    debugPrint('[POPIN EXPENSE] connector: \\${debugConnector?.toString()}');
-    debugPrint('[POPIN EXPENSE] bankName: \\${bankName}');*/
+    // Récupération robuste du nom de la banque pour la popin
+    AccountDetails? account = _accountsById[transaction.accountId];
+    String? connectionId = account?.connectionId;
+    BankConnectionDetails? connection = connectionId != null ? _connectionsById[connectionId] : null;
+    String? connectorUuid = connection?.connectorUuid;
+    ConnectorDetails? connector = connectorUuid != null ? _connectorsByUuid[connectorUuid] : null;
+    String bankName = connector?.name
+        ?? connection?.bankName
+        ?? 'Banque inconnue';
     final carbonScore = _carbonScores[transaction.id];
-    // debugPrint('[ExpensesScreen] Affichage score carbone pour tx \\${transaction.id} : $carbonScore');
     final formattedAmount = transaction.amount.abs().toStringAsFixed(2);
     final amountString =
         transaction.amount < 0 ? '-€$formattedAmount' : '€$formattedAmount';
     final carbonColor = AppTheme.getCarbonScoreColor(carbonScore);
-
-    // Ajout de logs pour debug Powens (voir https://docs.powens.com/api-reference/products/data-aggregation/bank-accounts#bankaccountslist-object)
-    // debugPrint('[POPIN EXPENSE] _accountsById keys: ' + _accountsById.keys.map((k) => '$k (${k.runtimeType})').join(', '));
-    //debugPrint('[POPIN EXPENSE] transaction.accountId: \\${transaction.accountId} (type: \\${transaction.accountId.runtimeType})');
-    // Fin logs
 
     return GestureDetector(
       onTap: () {
@@ -501,7 +472,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Text(
-                          bankName ?? 'Banque inconnue',
+                          bankName,
                           style: modalContext.titleMedium.copyWith(
                             fontWeight: FontWeight.w600,
                           ),
@@ -662,7 +633,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                           children: [
                             Text(
                               'Catégorie',
-                              style: modalContext.bodyLarge?.copyWith(
+                              style: modalContext.headlineSmall?.copyWith(
                                 fontWeight: FontWeight.w600,
                               ),
                             ),

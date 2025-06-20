@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
 import 'expenses_screen.dart';
-import 'chat_screen.dart';
+import 'community_screen.dart';
 import 'settings_screen.dart';
 import 'scan_screen.dart';
 
@@ -14,12 +14,12 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
-  
+
   final List<Widget> _screens = [
     const HomeScreen(),
     ExpensesScreen(),
     const ScanScreen(),
-    const ChatScreen(),
+    const CommunityScreen(),
     const SettingsScreen(),
   ];
 
@@ -55,7 +55,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   child: _buildNavItem(
                     icon: Icons.search_rounded,
                     index: 0,
-                    label: 'Discover',
+                    label: 'Explore',
                   ),
                 ),
                 Expanded(
@@ -67,16 +67,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 ),
                 Expanded(
                   child: _buildNavItem(
-                    icon: Icons.document_scanner_rounded,
+                    icon: Icons.bar_chart_rounded,
                     index: 2,
-                    label: 'Scan',
+                    label: 'Wealth',
                   ),
                 ),
                 Expanded(
                   child: _buildNavItem(
                     icon: Icons.chat_outlined,
                     index: 3,
-                    label: 'Chat',
+                    label: 'Community',
                   ),
                 ),
                 Expanded(
@@ -100,7 +100,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     required String label,
   }) {
     final isSelected = _selectedIndex == index;
-    
+
     return GestureDetector(
       onTap: () => _onItemTapped(index),
       child: AnimatedContainer(
@@ -114,14 +114,18 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           children: [
             Icon(
               icon,
-              color: isSelected ? const Color(0xFF366444) : const Color(0xFF212529),
+              color: isSelected
+                  ? const Color(0xFF366444)
+                  : const Color(0xFF212529),
               size: 24,
             ),
             const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? const Color(0xFF366444) : const Color(0xFF212529),
+                color: isSelected
+                    ? const Color(0xFF366444)
+                    : const Color(0xFF212529),
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),

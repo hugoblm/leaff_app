@@ -4,8 +4,11 @@ import 'package:provider/provider.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/powens_service.dart';
+import '../services/carbon_score_cache_service.dart';
+import '../services/rss_cache_service.dart';
 import '../theme/app_theme.dart';
 import 'bank_connections_screen.dart';
+import '../services/location_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -16,6 +19,8 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   UserModel? _user;
+  bool _locationEnabled = false;
+  String? _locationAddress;
 
   @override
   void initState() {
@@ -24,6 +29,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final powensService = Provider.of<PowensService>(context, listen: false);
       await powensService.refreshAllConnectionDetails();
+      // Chargement de l'état de la localisation
+      final enabled = await LocationService.isLocationEnabled();
+      String? address;
+      if (enabled) {
+        address = await LocationService.getLastAddress();
+      }
+      if (mounted) {
+        setState(() {
+          _locationEnabled = enabled;
+          _locationAddress = address;
+        });
+      }
     });
   }
 
@@ -51,6 +68,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 */
+
+  Future<void> _clearAllAppCaches() async {
+    // Purge Powens (détails, connecteurs, auth)
+    final powensService = Provider.of<PowensService>(context, listen: false);
+    await powensService.clearAllLocalData();
+    // Purge RSS
+    await RssCacheService.clearCache();
+    // Purge scores carbone
+    final carbonScoreCache = await CarbonScoreCacheService.getInstance();
+    await carbonScoreCache.clearAllScores();
+    debugPrint('Tous les caches applicatifs ont été purgés.');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -135,32 +164,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 builder: (context, powensServiceInstance, child) {
                   bool isConnected = powensServiceInstance.connectionIds.isNotEmpty;
                   String badgeText;
-                  Color badgeBackgroundColor;
                   Color badgeTextColor;
+                  Color badgeBackgroundColor;
 
                   if (isConnected) {
                     badgeText = 'Connecté';
-                    badgeBackgroundColor = Colors.green.withOpacity(0.1);
-                    badgeTextColor = Colors.green;
+                    (badgeTextColor, badgeBackgroundColor) = context.successBadge;
                   } else {
                     badgeText = 'Non connecté';
-                    badgeBackgroundColor = Colors.grey.shade200; // Fond gris clair
-                    badgeTextColor = Colors.grey.shade700;     // Texte gris foncé
+                    (badgeTextColor, badgeBackgroundColor) = context.errorBadge;
                   }
 
                   return Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: badgeBackgroundColor,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: context.badgeBorderRadius,
                     ),
                     child: Text(
                       badgeText,
-                      style: TextStyle(
-                        color: badgeTextColor,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: context.badge.copyWith(color: badgeTextColor),
                     ),
                   );
                 }
@@ -180,8 +203,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildSettingsCard(
               icon: Icons.location_on_outlined,
               title: 'Location',
-              subtitle: 'Set your address for local recommendations',
-              onTap: () {},
+              subtitle: _locationEnabled && _locationAddress != null
+                  ? _locationAddress!
+                  : 'Set your address for local recommendations',
+              onTap: () async {
+                if (_locationEnabled) {
+                  await LocationService.disableLocation();
+                  if (mounted) {
+                    setState(() {
+                      _locationEnabled = false;
+                      _locationAddress = null;
+                    });
+                  }
+                } else {
+                  final address = await LocationService.enableLocation();
+                  if (address != null && mounted) {
+                    setState(() {
+                      _locationEnabled = true;
+                      _locationAddress = address;
+                    });
+                  }
+                }
+              },
+              trailing: Builder(
+                builder: (context) {
+                  String badgeText = _locationEnabled ? 'Actif' : 'Désactivé';
+                  Color badgeTextColor;
+                  Color badgeBackgroundColor;
+                  if (_locationEnabled) {
+                    (badgeTextColor, badgeBackgroundColor) = context.successBadge;
+                  } else {
+                    badgeTextColor = context.grey700;
+                    badgeBackgroundColor = context.grey200;
+                  }
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: badgeBackgroundColor,
+                      borderRadius: context.badgeBorderRadius,
+                    ),
+                    child: Text(
+                      badgeText,
+                      style: context.badge.copyWith(color: badgeTextColor),
+                    ),
+                  );
+                },
+              ),
             ),
             _buildSettingsCard(
               icon: Icons.notifications_outlined,
@@ -204,7 +271,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: () {},
             ),
             const SizedBox(height: 32),
-
+            // BOUTON DEBUG : Purge tous les caches applicatifs
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 0.0, vertical: 8.0),
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.delete_forever),
+                label: const Text('Purger tous les caches (debug)'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 44),
+                ),
+                onPressed: () async {
+                  await _clearAllAppCaches();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Caches applicatifs purgés.')),
+                    );
+                  }
+                },
+              ),
+            ),
           ],
         ),
       ),

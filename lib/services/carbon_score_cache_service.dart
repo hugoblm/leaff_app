@@ -43,4 +43,10 @@ class CarbonScoreCacheService {
       await _prefs.remove(key);
     }
   }
+
+  Future<void> clearScoresForConnection(List<String> transactionIds) async {
+    for (final txId in transactionIds) {
+      await removeScore(txId);
+    }
+  }
 }

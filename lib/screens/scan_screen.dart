@@ -12,7 +12,7 @@ class ScanScreen extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(
-          'Scanner',
+          'Wealth',
           style: context.titleLarge.copyWith(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
@@ -25,13 +25,13 @@ class ScanScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.document_scanner_rounded,
+              Icons.bar_chart_rounded,
               size: 80,
               color: context.onSurfaceVariantColor,
             ),
             const SizedBox(height: 16),
             Text(
-              'Fonctionnalité de scan à venir',
+              'Wealth overview is coming soon',
               style: context.bodyLarge.copyWith(
                 color: context.onSurfaceVariantColor,
               ),
